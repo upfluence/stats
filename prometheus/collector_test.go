@@ -1,6 +1,7 @@
 package prometheus
 
 import (
+	"math"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -22,6 +23,48 @@ func TestCollect(t *testing.T) {
 			mutate: func(stats.Scope) {},
 			introspect: func(t *testing.T, fs []*dto.MetricFamily) {
 				assert.Equal(t, 0, len(fs))
+			},
+		},
+		{
+			name: "one histogram",
+			mutate: func(s stats.Scope) {
+				s.Histogram("foo", stats.StaticBuckets([]float64{1., 10.})).Record(5.)
+			},
+			introspect: func(t *testing.T, fs []*dto.MetricFamily) {
+				mt := dto.MetricType_HISTOGRAM
+				assert.Equal(
+					t,
+					[]*dto.MetricFamily{
+						&dto.MetricFamily{
+							Name: proto.String("foo"),
+							Help: proto.String("no help"),
+							Type: &mt,
+							Metric: []*dto.Metric{
+								&dto.Metric{
+									Histogram: &dto.Histogram{
+										SampleCount: proto.Uint64(1),
+										SampleSum:   proto.Float64(5.),
+										Bucket: []*dto.Bucket{
+											&dto.Bucket{
+												CumulativeCount: proto.Uint64(0),
+												UpperBound:      proto.Float64(1.),
+											},
+											&dto.Bucket{
+												CumulativeCount: proto.Uint64(1),
+												UpperBound:      proto.Float64(10.),
+											},
+											&dto.Bucket{
+												CumulativeCount: proto.Uint64(1),
+												UpperBound:      proto.Float64(math.Inf(0)),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					fs,
+				)
 			},
 		},
 		{

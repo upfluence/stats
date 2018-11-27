@@ -3,6 +3,7 @@ package prometheus
 import (
 	"net/http"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
@@ -25,6 +26,73 @@ func NewCollector(r prometheus.Registerer) *Collector {
 
 func (c *Collector) Close() error          { return nil }
 func (c *Collector) Handler() http.Handler { return prometheus.Handler() }
+
+func (c *Collector) RegisterHistogram(n string, g stats.HistogramVectorGetter) {
+	c.r.MustRegister(
+		&histogramWrapper{
+			g:    g,
+			n:    n,
+			desc: prometheus.NewDesc(n, "no help", g.Labels(), nil),
+		},
+	)
+}
+
+type histogramWrapper struct {
+	g stats.HistogramVectorGetter
+	n string
+
+	desc *prometheus.Desc
+}
+
+func (hw *histogramWrapper) Describe(ch chan<- *prometheus.Desc) {
+	ch <- hw.desc
+}
+
+func (hw *histogramWrapper) Collect(ch chan<- prometheus.Metric) {
+	for _, v := range hw.g.Get() {
+		ch <- &histogramMetric{desc: hw.desc, v: v}
+	}
+}
+
+type histogramMetric struct {
+	desc *prometheus.Desc
+	v    *stats.HistogramValue
+}
+
+func (hm *histogramMetric) Desc() *prometheus.Desc {
+	return hm.desc
+}
+
+func (hm *histogramMetric) Write(m *dto.Metric) error {
+	var ps []*dto.LabelPair
+
+	for k, v := range hm.v.Tags {
+		ps = append(ps, &dto.LabelPair{Name: &k, Value: &v})
+	}
+
+	m.Histogram = &dto.Histogram{
+		SampleCount: proto.Uint64(uint64(hm.v.Count)),
+		SampleSum:   proto.Float64(hm.v.Sum),
+	}
+
+	var sum int64
+
+	for _, b := range hm.v.Buckets {
+		sum += b.Count
+
+		m.Histogram.Bucket = append(
+			m.Histogram.Bucket,
+			&dto.Bucket{
+				CumulativeCount: proto.Uint64(uint64(sum)),
+				UpperBound:      proto.Float64(b.UpperBound),
+			},
+		)
+	}
+
+	m.Label = ps
+
+	return nil
+}
 
 func (c *Collector) RegisterGauge(n string, g stats.Int64VectorGetter) {
 	c.registerInt64Collector(

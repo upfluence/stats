@@ -132,3 +132,26 @@ func TestGauge(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkGaugeInc(b *testing.B) {
+	c := RootScope(NewStaticCollector()).Gauge("foo")
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		c.Update(37)
+	}
+}
+
+func BenchmarkVectorGauge(b *testing.B) {
+	c := RootScope(NewStaticCollector()).GaugeVector(
+		"foo",
+		[]string{"bar", "buz"},
+	)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		c.WithLabels("foo", "bar").Update(37)
+	}
+}

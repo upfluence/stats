@@ -1,47 +1,51 @@
 package stats
 
 import (
-	"strconv"
-	"strings"
+	"hash"
+	"hash/fnv"
+	"io"
+	"sync"
 )
 
 type labelMarshaler interface {
-	marshal([]string) string
-	unmarshal(string) []string
+	marshal([]string) uint64
+	unmarshal(uint64) []string
 }
 
-type defaultLabelMarshaler struct{}
-
-func (defaultLabelMarshaler) marshal(vs []string) string {
-	var parts = make([]string, len(vs))
-
-	for i, v := range vs {
-		parts[i] = strconv.QuoteToASCII(v)
+func newDefaultMarshaler() labelMarshaler {
+	return &hashingMarshaler{
+		pool: sync.Pool{
+			New: func() interface{} { return fnv.New64() },
+		},
+		st: make(map[uint64][]string),
 	}
-
-	return strings.Join(parts, ".")
 }
 
-func (defaultLabelMarshaler) unmarshal(s string) []string {
-	var (
-		parts = strings.Split(s, ".")
+// WARNING: this struct is not thread safe. It has to be safely guarded by a
+// mutex in the structure using it.
+type hashingMarshaler struct {
+	pool sync.Pool
 
-		res = make([]string, len(parts))
-	)
+	st map[uint64][]string
+}
 
-	if len(parts) == 1 && parts[0] == "" {
-		return nil
+func (hm *hashingMarshaler) marshal(vs []string) uint64 {
+	var hasher = hm.pool.Get().(hash.Hash64)
+
+	hasher.Reset()
+
+	for _, v := range vs {
+		io.WriteString(hasher, v)
 	}
 
-	for i, p := range parts {
+	res := hasher.Sum64()
 
-		if up, err := strconv.Unquote(p); err == nil {
-			res[i] = up
-			continue
-		}
-
-		res[i] = p
-	}
+	hm.st[res] = vs
+	hm.pool.Put(hasher)
 
 	return res
+}
+
+func (hm *hashingMarshaler) unmarshal(h uint64) []string {
+	return hm.st[h]
 }

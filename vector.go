@@ -16,14 +16,14 @@ type atomicInt64Vector struct {
 	labels []string
 
 	mu sync.RWMutex
-	cs map[string]*atomicInt64
+	cs map[uint64]*atomicInt64
 
 	marshaler labelMarshaler
 }
 
 func (v *atomicInt64Vector) Labels() []string { return v.labels }
 
-func (v *atomicInt64Vector) buildTags(key string) map[string]string {
+func (v *atomicInt64Vector) buildTags(key uint64) map[string]string {
 	var tags = make(map[string]string, len(v.labels))
 
 	for i, val := range v.marshaler.unmarshal(key) {

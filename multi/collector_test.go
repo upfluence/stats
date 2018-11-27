@@ -8,7 +8,10 @@ import (
 )
 
 type mockCollector struct {
-	closeCalled, registerCounterCalled, registerGaugeCalled bool
+	closeCalled             bool
+	registerCounterCalled   bool
+	registerGaugeCalled     bool
+	registerHistogramCalled bool
 }
 
 func (m *mockCollector) Close() error {
@@ -24,6 +27,10 @@ func (m *mockCollector) RegisterGauge(string, stats.Int64VectorGetter) {
 	m.registerGaugeCalled = true
 }
 
+func (m *mockCollector) RegisterHistogram(string, stats.HistogramVectorGetter) {
+	m.registerHistogramCalled = true
+}
+
 var c0, c1 mockCollector
 
 func TestClose(t *testing.T) {
@@ -31,6 +38,13 @@ func TestClose(t *testing.T) {
 
 	assert.True(t, c0.closeCalled)
 	assert.True(t, c1.closeCalled)
+}
+
+func TestRegisterHistogram(t *testing.T) {
+	WrapCollectors(&c0, &c1).RegisterHistogram("foo", nil)
+
+	assert.True(t, c0.registerHistogramCalled)
+	assert.True(t, c1.registerHistogramCalled)
 }
 
 func TestRegisterCounter(t *testing.T) {

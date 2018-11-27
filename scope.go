@@ -9,6 +9,8 @@ type limitedScope interface {
 	collector() Collector
 }
 
+type HistogramOption func(*histogramVector)
+
 type Scope interface {
 	limitedScope
 
@@ -17,6 +19,9 @@ type Scope interface {
 
 	Gauge(string) Gauge
 	GaugeVector(string, []string) GaugeVector
+
+	Histogram(string, ...HistogramOption) Histogram
+	HistogramVector(string, []string, ...HistogramOption) HistogramVector
 
 	Scope(string, map[string]string) Scope
 }
@@ -56,6 +61,79 @@ func (slcg *scopedInt64VectorGetter) Get() []*Int64Value {
 	return res
 }
 
+type scopedHistogramVectorGetter struct {
+	s limitedScope
+	g HistogramVectorGetter
+}
+
+func (shvg *scopedHistogramVectorGetter) Labels() []string {
+	var ls = shvg.g.Labels()
+
+	for k := range shvg.s.tags() {
+		ls = append(ls, k)
+	}
+
+	return ls
+}
+
+func (shvg *scopedHistogramVectorGetter) Get() []*HistogramValue {
+	var res = shvg.g.Get()
+
+	for _, cv := range res {
+		for k, v := range shvg.s.tags() {
+			cv.Tags[k] = v
+		}
+	}
+
+	return res
+}
+
+func (sw scopeWrapper) Histogram(name string, opts ...HistogramOption) Histogram {
+	var hv = &histogramVector{
+		cutoffs:   defaultCutoffs,
+		hs:        map[uint64]*histogram{},
+		marshaler: newDefaultMarshaler(),
+	}
+
+	for _, opt := range opts {
+		opt(hv)
+	}
+
+	h := &histogram{
+		cutoffs: hv.cutoffs,
+		counts:  make([]atomicInt64, len(hv.cutoffs)),
+	}
+
+	hv.hs[0] = h
+
+	sw.collector().RegisterHistogram(
+		joinStrings(sw.namespace(), name),
+		&scopedHistogramVectorGetter{s: sw.limitedScope, g: hv},
+	)
+
+	return h
+}
+
+func (sw scopeWrapper) HistogramVector(name string, labels []string, opts ...HistogramOption) HistogramVector {
+	var hv = &histogramVector{
+		cutoffs:   defaultCutoffs,
+		labels:    labels,
+		hs:        map[uint64]*histogram{},
+		marshaler: newDefaultMarshaler(),
+	}
+
+	for _, opt := range opts {
+		opt(hv)
+	}
+
+	sw.collector().RegisterHistogram(
+		joinStrings(sw.namespace(), name),
+		&scopedHistogramVectorGetter{s: sw.limitedScope, g: hv},
+	)
+
+	return hv
+}
+
 func (sw scopeWrapper) Gauge(name string) Gauge {
 	var c = &atomicInt64{}
 
@@ -64,8 +142,8 @@ func (sw scopeWrapper) Gauge(name string) Gauge {
 		&scopedInt64VectorGetter{
 			s: sw.limitedScope,
 			g: &atomicInt64Vector{
-				cs:        map[string]*atomicInt64{"": c},
-				marshaler: defaultLabelMarshaler{},
+				cs:        map[uint64]*atomicInt64{0: c},
+				marshaler: newDefaultMarshaler(),
 			},
 		},
 	)
@@ -76,8 +154,8 @@ func (sw scopeWrapper) Gauge(name string) Gauge {
 func (sw scopeWrapper) GaugeVector(name string, labels []string) GaugeVector {
 	var lc = &atomicInt64Vector{
 		labels:    labels,
-		cs:        make(map[string]*atomicInt64),
-		marshaler: defaultLabelMarshaler{},
+		cs:        make(map[uint64]*atomicInt64),
+		marshaler: newDefaultMarshaler(),
 	}
 
 	sw.collector().RegisterGauge(
@@ -96,8 +174,8 @@ func (sw scopeWrapper) Counter(name string) Counter {
 		&scopedInt64VectorGetter{
 			s: sw.limitedScope,
 			g: &atomicInt64Vector{
-				cs:        map[string]*atomicInt64{"": c},
-				marshaler: defaultLabelMarshaler{},
+				cs:        map[uint64]*atomicInt64{0: c},
+				marshaler: newDefaultMarshaler(),
 			},
 		},
 	)
@@ -108,8 +186,8 @@ func (sw scopeWrapper) Counter(name string) Counter {
 func (sw scopeWrapper) CounterVector(name string, labels []string) CounterVector {
 	var lc = &atomicInt64Vector{
 		labels:    labels,
-		cs:        make(map[string]*atomicInt64),
-		marshaler: defaultLabelMarshaler{},
+		cs:        make(map[uint64]*atomicInt64),
+		marshaler: newDefaultMarshaler(),
 	}
 
 	sw.collector().RegisterCounter(

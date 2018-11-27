@@ -7,4 +7,5 @@ type Collector interface {
 
 	RegisterCounter(string, Int64VectorGetter)
 	RegisterGauge(string, Int64VectorGetter)
+	RegisterHistogram(string, HistogramVectorGetter)
 }

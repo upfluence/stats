@@ -26,6 +26,12 @@ func (cs multiCollector) RegisterGauge(n string, g stats.Int64VectorGetter) {
 	}
 }
 
+func (cs multiCollector) RegisterHistogram(n string, g stats.HistogramVectorGetter) {
+	for _, c := range cs {
+		c.RegisterHistogram(n, g)
+	}
+}
+
 func WrapCollectors(cs ...stats.Collector) stats.Collector {
 	switch len(cs) {
 	case 0:

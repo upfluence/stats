@@ -8,6 +8,7 @@ import (
 
 func snapshotEqual(expected Snapshot) func(*testing.T, Snapshot) {
 	return func(t *testing.T, actual Snapshot) {
+		t.Helper()
 		assert.Equal(t, expected, actual)
 	}
 }
@@ -106,13 +107,13 @@ func TestCounter(t *testing.T) {
 					Counters: []Int64Snapshot{
 						{
 							Name:   "foo",
-							Labels: map[string]string{"bar": "bua"},
-							Value:  2,
+							Labels: map[string]string{"bar": "buz"},
+							Value:  1,
 						},
 						{
 							Name:   "foo",
-							Labels: map[string]string{"bar": "buz"},
-							Value:  1,
+							Labels: map[string]string{"bar": "bua"},
+							Value:  2,
 						},
 					},
 				},
@@ -163,5 +164,28 @@ func TestCounter(t *testing.T) {
 			tt.mutate(RootScope(c))
 			tt.introspect(t, c.Get())
 		})
+	}
+}
+
+func BenchmarkCounterInc(b *testing.B) {
+	c := RootScope(NewStaticCollector()).Counter("foo")
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		c.Inc()
+	}
+}
+
+func BenchmarkVectorCounter(b *testing.B) {
+	c := RootScope(NewStaticCollector()).CounterVector(
+		"foo",
+		[]string{"bar", "buz"},
+	)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		c.WithLabels("foo", "bar").Inc()
 	}
 }

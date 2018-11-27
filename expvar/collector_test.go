@@ -47,6 +47,19 @@ func TestPublish(t *testing.T) {
 				)
 			},
 		},
+		{
+			name: "simple histogram",
+			mutate: func(s stats.Scope) {
+				s.Histogram("buz").Record(.37)
+			},
+			asserMap: func(t *testing.T, res map[string]string) {
+				assert.Equal(
+					t,
+					"{\"Type\":\"histogram\",\"Value\":[{\"Tags\":{},\"Count\":1,\"Sum\":0.37,\"Buckets\":[{\"Count\":0,\"UpperBound\":0.005},{\"Count\":0,\"UpperBound\":0.01},{\"Count\":0,\"UpperBound\":0.025},{\"Count\":0,\"UpperBound\":0.05},{\"Count\":0,\"UpperBound\":0.1},{\"Count\":0,\"UpperBound\":0.25},{\"Count\":1,\"UpperBound\":0.5},{\"Count\":0,\"UpperBound\":1},{\"Count\":0,\"UpperBound\":2.5},{\"Count\":0,\"UpperBound\":5},{\"Count\":0,\"UpperBound\":10},{\"Count\":0,\"UpperBound\":0}]}]}\n",
+					res["buz"],
+				)
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mutate(stats.RootScope(NewCollector()))
