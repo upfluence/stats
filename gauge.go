@@ -1,8 +1,6 @@
 package stats
 
 type GaugeVector interface {
-	Int64VectorGetter
-
 	WithLabels(...string) Gauge
 }
 
@@ -15,6 +13,24 @@ type gaugeVector struct {
 	*atomicInt64Vector
 }
 
-func (cv *gaugeVector) WithLabels(ls ...string) Gauge {
-	return cv.fetchValue(ls)
+func (gv gaugeVector) WithLabels(ls ...string) Gauge {
+	return gv.fetchValue(ls)
+}
+
+type partialGaugeVector struct {
+	gv GaugeVector
+	vs []string
+}
+
+func (pgv partialGaugeVector) WithLabels(ls ...string) Gauge {
+	return pgv.gv.WithLabels(append(pgv.vs, ls...)...)
+}
+
+type reorderGaugeVector struct {
+	gv GaugeVector
+	labelOrderer
+}
+
+func (rgv reorderGaugeVector) WithLabels(ls ...string) Gauge {
+	return rgv.gv.WithLabels(rgv.order(ls)...)
 }

@@ -1,12 +1,14 @@
 package stats
 
-import "strings"
+import (
+	"strings"
+)
 
 type limitedScope interface {
 	namespace() string
 	tags() map[string]string
 
-	collector() Collector
+	rootScope() *rootScope
 }
 
 type HistogramOption func(*histogramVector)
@@ -26,176 +28,98 @@ type Scope interface {
 	Scope(string, map[string]string) Scope
 }
 
-func RootScope(c Collector) Scope {
-	return scopeWrapper{&rootScope{c: c}}
-}
-
 type scopeWrapper struct {
 	limitedScope
 }
 
-type scopedInt64VectorGetter struct {
-	s limitedScope
-	g Int64VectorGetter
-}
+func (sw scopeWrapper) buildLabelValues() ([]string, []string) {
+	var (
+		tags   = sw.tags()
+		labels = make([]string, 0, len(tags))
+		values = make([]string, 0, len(tags))
+	)
 
-func (slcg *scopedInt64VectorGetter) Labels() []string {
-	var ls = slcg.g.Labels()
-
-	for k := range slcg.s.tags() {
-		ls = append(ls, k)
+	for l, v := range tags {
+		labels = append(labels, l)
+		values = append(values, v)
 	}
 
-	return ls
-}
-
-func (slcg *scopedInt64VectorGetter) Get() []*Int64Value {
-	var res = slcg.g.Get()
-
-	for _, cv := range res {
-		for k, v := range slcg.s.tags() {
-			cv.Tags[k] = v
-		}
-	}
-
-	return res
-}
-
-type scopedHistogramVectorGetter struct {
-	s limitedScope
-	g HistogramVectorGetter
-}
-
-func (shvg *scopedHistogramVectorGetter) Labels() []string {
-	var ls = shvg.g.Labels()
-
-	for k := range shvg.s.tags() {
-		ls = append(ls, k)
-	}
-
-	return ls
-}
-
-func (shvg *scopedHistogramVectorGetter) Get() []*HistogramValue {
-	var res = shvg.g.Get()
-
-	for _, cv := range res {
-		for k, v := range shvg.s.tags() {
-			cv.Tags[k] = v
-		}
-	}
-
-	return res
+	return labels, values
 }
 
 func (sw scopeWrapper) Histogram(name string, opts ...HistogramOption) Histogram {
-	var hv = &histogramVector{
-		cutoffs:   defaultCutoffs,
-		hs:        map[uint64]*histogram{},
-		marshaler: newDefaultMarshaler(),
-	}
+	var (
+		ls, vs = sw.buildLabelValues()
 
-	for _, opt := range opts {
-		opt(hv)
-	}
-
-	h := &histogram{
-		cutoffs: hv.cutoffs,
-		counts:  make([]atomicInt64, len(hv.cutoffs)),
-	}
-
-	hv.hs[0] = h
-
-	sw.collector().RegisterHistogram(
-		joinStrings(sw.namespace(), name),
-		&scopedHistogramVectorGetter{s: sw.limitedScope, g: hv},
+		hv = sw.rootScope().registerHistogram(
+			joinStrings(sw.namespace(), name),
+			ls,
+			opts...,
+		)
 	)
 
-	return h
+	return hv.WithLabels(vs...)
+
 }
 
 func (sw scopeWrapper) HistogramVector(name string, labels []string, opts ...HistogramOption) HistogramVector {
-	var hv = &histogramVector{
-		cutoffs:   defaultCutoffs,
-		labels:    labels,
-		hs:        map[uint64]*histogram{},
-		marshaler: newDefaultMarshaler(),
-	}
+	var (
+		sls, vs = sw.buildLabelValues()
 
-	for _, opt := range opts {
-		opt(hv)
-	}
-
-	sw.collector().RegisterHistogram(
-		joinStrings(sw.namespace(), name),
-		&scopedHistogramVectorGetter{s: sw.limitedScope, g: hv},
+		hv = sw.rootScope().registerHistogram(
+			joinStrings(sw.namespace(), name),
+			append(sls, labels...),
+			opts...,
+		)
 	)
 
-	return hv
+	return partialHistogramVector{hv: hv, vs: vs}
 }
 
 func (sw scopeWrapper) Gauge(name string) Gauge {
-	var c = &atomicInt64{}
+	var (
+		ls, vs = sw.buildLabelValues()
 
-	sw.collector().RegisterGauge(
-		joinStrings(sw.namespace(), name),
-		&scopedInt64VectorGetter{
-			s: sw.limitedScope,
-			g: &atomicInt64Vector{
-				cs:        map[uint64]*atomicInt64{0: c},
-				marshaler: newDefaultMarshaler(),
-			},
-		},
+		gv = sw.rootScope().registerGauge(joinStrings(sw.namespace(), name), ls)
 	)
 
-	return c
+	return gv.WithLabels(vs...)
 }
 
 func (sw scopeWrapper) GaugeVector(name string, labels []string) GaugeVector {
-	var lc = &atomicInt64Vector{
-		labels:    labels,
-		cs:        make(map[uint64]*atomicInt64),
-		marshaler: newDefaultMarshaler(),
-	}
+	var (
+		sls, vs = sw.buildLabelValues()
 
-	sw.collector().RegisterGauge(
-		joinStrings(sw.namespace(), name),
-		&scopedInt64VectorGetter{s: sw.limitedScope, g: lc},
+		gv = sw.rootScope().registerGauge(
+			joinStrings(sw.namespace(), name),
+			append(sls, labels...),
+		)
 	)
 
-	return &gaugeVector{atomicInt64Vector: lc}
+	return partialGaugeVector{gv: gv, vs: vs}
 }
 
 func (sw scopeWrapper) Counter(name string) Counter {
-	var c = &atomicInt64{}
+	var (
+		ls, vs = sw.buildLabelValues()
 
-	sw.collector().RegisterCounter(
-		joinStrings(sw.namespace(), name),
-		&scopedInt64VectorGetter{
-			s: sw.limitedScope,
-			g: &atomicInt64Vector{
-				cs:        map[uint64]*atomicInt64{0: c},
-				marshaler: newDefaultMarshaler(),
-			},
-		},
+		cv = sw.rootScope().registerCounter(joinStrings(sw.namespace(), name), ls)
 	)
 
-	return c
+	return cv.WithLabels(vs...)
 }
 
 func (sw scopeWrapper) CounterVector(name string, labels []string) CounterVector {
-	var lc = &atomicInt64Vector{
-		labels:    labels,
-		cs:        make(map[uint64]*atomicInt64),
-		marshaler: newDefaultMarshaler(),
-	}
+	var (
+		pls, vs = sw.buildLabelValues()
 
-	sw.collector().RegisterCounter(
-		joinStrings(sw.namespace(), name),
-		&scopedInt64VectorGetter{s: sw.limitedScope, g: lc},
+		cv = sw.rootScope().registerCounter(
+			joinStrings(sw.namespace(), name),
+			append(pls, labels...),
+		)
 	)
 
-	return &counterVector{atomicInt64Vector: lc}
+	return partialCounterVector{cv: cv, vs: vs}
 }
 
 func (sw scopeWrapper) Scope(ns string, tags map[string]string) Scope {
@@ -203,14 +127,6 @@ func (sw scopeWrapper) Scope(ns string, tags map[string]string) Scope {
 		limitedScope: &subScope{parent: sw.limitedScope, ns: ns, ts: tags},
 	}
 }
-
-type rootScope struct {
-	c Collector
-}
-
-func (*rootScope) namespace() string       { return "" }
-func (*rootScope) tags() map[string]string { return nil }
-func (rs *rootScope) collector() Collector { return rs.c }
 
 type subScope struct {
 	parent limitedScope
@@ -227,7 +143,7 @@ func (ss *subScope) tags() map[string]string {
 	return mergeStringMaps(ss.parent.tags(), ss.ts)
 }
 
-func (ss *subScope) collector() Collector { return ss.parent.collector() }
+func (ss *subScope) rootScope() *rootScope { return ss.parent.rootScope() }
 
 func joinStrings(ss ...string) string {
 	var (

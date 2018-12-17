@@ -52,6 +52,28 @@ func TestHistogram(t *testing.T) {
 			),
 		},
 		{
+			name: "multiple histogram with the same name",
+			mutate: func(s Scope) {
+				s.Histogram("foo").Record(0.012)
+				s.Histogram("foo").Record(0.018)
+			},
+			introspect: snapshotEqual(
+				Snapshot{
+					Histograms: []HistogramSnapshot{
+						{
+							Name: "foo",
+							Value: HistogramValue{
+								Tags:    map[string]string{},
+								Count:   2,
+								Sum:     .030,
+								Buckets: buildBuckets(defaultCutoffs, .012, .018),
+							},
+						},
+					},
+				},
+			),
+		},
+		{
 			name: "simple histogram on scope",
 			mutate: func(s Scope) {
 				s.Scope("bar", map[string]string{"fiz": "buz"}).Histogram("foo").Record(.001)

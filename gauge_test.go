@@ -104,6 +104,24 @@ func TestGauge(t *testing.T) {
 			),
 		},
 		{
+			name: "multi use of the same  gauge",
+			mutate: func(s Scope) {
+				s.Gauge("foo").Update(3)
+				s.Gauge("foo").Update(4)
+			},
+			introspect: snapshotEqual(
+				Snapshot{
+					Gauges: []Int64Snapshot{
+						{
+							Name:   "foo",
+							Labels: map[string]string{},
+							Value:  4,
+						},
+					},
+				},
+			),
+		},
+		{
 			name: "multi use of the same gauge",
 			mutate: func(s Scope) {
 				c := s.Gauge("foo")

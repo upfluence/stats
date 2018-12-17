@@ -120,7 +120,35 @@ func TestCounter(t *testing.T) {
 			),
 		},
 		{
-			name: "multiple instance of the same counter no overlap",
+			name: "multiple instance and matching labels",
+			mutate: func(s Scope) {
+				s.CounterVector(
+					"foo",
+					[]string{"foo", "bar"},
+				).WithLabels("fiz", "buz").Inc()
+
+				s.CounterVector(
+					"foo",
+					[]string{"bar", "foo"},
+				).WithLabels("buz", "fiz").Inc()
+			},
+			introspect: snapshotEqual(
+				Snapshot{
+					Counters: []Int64Snapshot{
+						{
+							Name: "foo",
+							Labels: map[string]string{
+								"bar": "buz",
+								"foo": "fiz",
+							},
+							Value: 2,
+						},
+					},
+				},
+			),
+		},
+		{
+			name: "multiple instance of the same counter adds up",
 			mutate: func(s Scope) {
 				s.Counter("foo").Inc()
 				s.Counter("foo").Inc()
@@ -131,7 +159,7 @@ func TestCounter(t *testing.T) {
 						{
 							Name:   "foo",
 							Labels: map[string]string{},
-							Value:  1,
+							Value:  2,
 						},
 					},
 				},

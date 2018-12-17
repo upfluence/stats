@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"fmt"
 	"math"
 	"sync"
 )
@@ -30,12 +31,11 @@ type HistogramValue struct {
 
 type HistogramVectorGetter interface {
 	Labels() []string
+	Cutoffs() []float64
 	Get() []*HistogramValue
 }
 
 type HistogramVector interface {
-	HistogramVectorGetter
-
 	WithLabels(...string) Histogram
 }
 
@@ -49,9 +49,8 @@ type histogramVector struct {
 	marshaler labelMarshaler
 }
 
-func (hv *histogramVector) Labels() []string {
-	return hv.labels
-}
+func (hv *histogramVector) Labels() []string   { return hv.labels }
+func (hv *histogramVector) Cutoffs() []float64 { return hv.cutoffs }
 
 func (hv *histogramVector) buildTags(key uint64) map[string]string {
 	var tags = make(map[string]string, len(hv.labels))
@@ -83,7 +82,13 @@ func (hv *histogramVector) Get() []*HistogramValue {
 
 func (hv *histogramVector) WithLabels(ls ...string) Histogram {
 	if len(ls) != len(hv.labels) {
-		panic("Not the correct number of labels")
+		panic(
+			fmt.Sprintf(
+				"Not the correct number of labels: labels: %v, values: %v",
+				hv.labels,
+				ls,
+			),
+		)
 	}
 
 	k := hv.marshaler.marshal(ls)
@@ -104,8 +109,8 @@ func (hv *histogramVector) WithLabels(ls ...string) Histogram {
 	}
 
 	hv.hs[k] = h
-	hv.mu.Unlock()
 
+	hv.mu.Unlock()
 	return h
 }
 
@@ -133,7 +138,9 @@ func (h *histogram) Record(v float64) {
 	for i, c := range h.cutoffs {
 		if v <= c {
 			h.counts[i].Inc()
+			fmt.Println(v)
 			h.sum.Add(v)
+			fmt.Println(h.sum.Get())
 			break
 		}
 	}
@@ -166,4 +173,22 @@ func StaticBuckets(cutoffs []float64) HistogramOption {
 	return func(hv *histogramVector) {
 		hv.cutoffs = append(cutoffs, math.Inf(0))
 	}
+}
+
+type partialHistogramVector struct {
+	hv HistogramVector
+	vs []string
+}
+
+func (phv partialHistogramVector) WithLabels(labels ...string) Histogram {
+	return phv.hv.WithLabels(append(phv.vs, labels...)...)
+}
+
+type reorderHistogramVector struct {
+	hv HistogramVector
+	labelOrderer
+}
+
+func (rhv reorderHistogramVector) WithLabels(ls ...string) Histogram {
+	return rhv.hv.WithLabels(rhv.order(ls)...)
 }

@@ -27,5 +27,15 @@ func (af *atomicFloat64) Update(v float64) {
 }
 
 func (af *atomicFloat64) Add(v float64) {
-	atomic.AddUint64(&af.uint64, math.Float64bits(v))
+	for {
+		old := atomic.LoadUint64(&af.uint64)
+
+		if atomic.CompareAndSwapUint64(
+			&af.uint64,
+			old,
+			math.Float64bits(math.Float64frombits(old)+v),
+		) {
+			return
+		}
+	}
 }
