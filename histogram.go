@@ -138,9 +138,7 @@ func (h *histogram) Record(v float64) {
 	for i, c := range h.cutoffs {
 		if v <= c {
 			h.counts[i].Inc()
-			fmt.Println(v)
 			h.sum.Add(v)
-			fmt.Println(h.sum.Get())
 			break
 		}
 	}
