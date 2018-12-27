@@ -14,18 +14,15 @@ type labelMarshaler interface {
 
 func newDefaultMarshaler() labelMarshaler {
 	return &hashingMarshaler{
-		pool: sync.Pool{
-			New: func() interface{} { return fnv.New64() },
-		},
-		st: make(map[uint64][]string),
+		pool: sync.Pool{New: func() interface{} { return fnv.New64() }},
+		st:   make(map[uint64][]string),
 	}
 }
 
-// WARNING: this struct is not thread safe. It has to be safely guarded by a
-// mutex in the structure using it.
 type hashingMarshaler struct {
 	pool sync.Pool
 
+	sync.RWMutex
 	st map[uint64][]string
 }
 
@@ -40,12 +37,17 @@ func (hm *hashingMarshaler) marshal(vs []string) uint64 {
 
 	res := hasher.Sum64()
 
+	hm.Lock()
 	hm.st[res] = vs
+	hm.Unlock()
 	hm.pool.Put(hasher)
 
 	return res
 }
 
 func (hm *hashingMarshaler) unmarshal(h uint64) []string {
+	hm.RLock()
+	defer hm.RUnlock()
+
 	return hm.st[h]
 }

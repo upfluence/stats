@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -192,6 +193,28 @@ func TestCounter(t *testing.T) {
 			tt.mutate(RootScope(c))
 			tt.introspect(t, c.Get())
 		})
+	}
+}
+
+func TestConcurrentCounterVector(t *testing.T) {
+	s := RootScope(NewStaticCollector())
+
+	for i := 0; i < 100; i++ {
+		i := i
+		go func() {
+			cv := s.CounterVector("foo", []string{"bar"})
+			cv.WithLabels(strconv.Itoa(i)).Inc()
+		}()
+	}
+}
+
+func BenchmarkCounterDeclare(b *testing.B) {
+	s := RootScope(NewStaticCollector())
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		s.Counter("foo").Inc()
 	}
 }
 
