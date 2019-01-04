@@ -67,6 +67,7 @@ func (hm *histogramMetric) Write(m *dto.Metric) error {
 	var ps []*dto.LabelPair
 
 	for k, v := range hm.v.Tags {
+		k, v := k, v
 		ps = append(ps, &dto.LabelPair{Name: &k, Value: &v})
 	}
 
@@ -145,6 +146,7 @@ func (im *int64MetricImpl) Write(m *dto.Metric) error {
 	var ps []*dto.LabelPair
 
 	for k, v := range im.v.Tags {
+		k, v := k, v
 		ps = append(ps, &dto.LabelPair{Name: &k, Value: &v})
 	}
 
