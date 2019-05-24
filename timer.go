@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -32,13 +33,47 @@ type stopWatch struct {
 	timer *timer
 }
 
+type TimerOption func(*timerOptions)
+
+type timerOptions struct {
+	hOpts  []HistogramOption
+	suffix string
+}
+
+func WithHistogramOptions(hOpts ...HistogramOption) TimerOption {
+	return func(opts *timerOptions) {
+		opts.hOpts = hOpts
+	}
+}
+
+func WithTimerSuffix(s string) TimerOption {
+	return func(opts *timerOptions) {
+		opts.suffix = s
+	}
+}
+
+var defaultTimerOptions = timerOptions{
+	suffix: "_seconds",
+}
+
 func (sw *stopWatch) Stop() {
 	sw.timer.Record(time.Since(sw.t0).Seconds())
 	sw.timer.p.Put(sw)
 }
 
-func NewTimer(scope Scope, name string, opts ...HistogramOption) Timer {
-	var t = &timer{Histogram: scope.Histogram(name+"_seconds", opts...)}
+func NewTimer(scope Scope, name string, tOpts ...TimerOption) Timer {
+	var opts = defaultTimerOptions
+
+	for _, opt := range tOpts {
+		opt(&opts)
+	}
+
+	var t = &timer{
+		Histogram: scope.Histogram(
+			fmt.Sprintf("%s%s", name, opts.suffix),
+			opts.hOpts...,
+		),
+	}
 
 	t.p = sync.Pool{New: func() interface{} { return &stopWatch{timer: t} }}
 

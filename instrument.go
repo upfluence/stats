@@ -1,12 +1,23 @@
 package stats
 
+import "fmt"
+
 type Instrument interface {
 	Exec(func() error) error
 }
 
 type InstrumentOption func(*instrumentOptions)
 
-var defaultOptions = instrumentOptions{formatter: defaultFormatter}
+var defaultOptions = instrumentOptions{
+	formatter:    defaultFormatter,
+	trackStarted: true,
+}
+
+func DisableStartedCounter() InstrumentOption {
+	return func(opts *instrumentOptions) {
+		opts.trackStarted = false
+	}
+}
 
 func WithFormatter(f ErrorFormatter) InstrumentOption {
 	return func(opts *instrumentOptions) {
@@ -14,29 +25,45 @@ func WithFormatter(f ErrorFormatter) InstrumentOption {
 	}
 }
 
-func WithHistogramOptions(hOpts ...HistogramOption) InstrumentOption {
+func WithTimerOptions(tOpts ...TimerOption) InstrumentOption {
 	return func(opts *instrumentOptions) {
-		opts.hOpts = hOpts
+		opts.tOpts = tOpts
 	}
 }
 
 type instrumentOptions struct {
-	hOpts     []HistogramOption
-	formatter ErrorFormatter
+	formatter    ErrorFormatter
+	tOpts        []TimerOption
+	trackStarted bool
 }
 
 func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrument {
-	opts := defaultOptions
+	var (
+		opts = defaultOptions
+
+		startedCounter Counter = &noopCounter{}
+	)
 
 	for _, opt := range iOpts {
 		opt(&opts)
 	}
 
+	if opts.trackStarted {
+		startedCounter = scope.Counter(fmt.Sprintf("%s_started_total", name))
+	}
+
 	return &instrument{
 		instrumentOptions: opts,
-		timer:             NewTimer(scope, name+"_duration", opts.hOpts...),
-		started:           scope.Counter(name + "_started_total"),
-		finished:          scope.CounterVector(name+"_total", []string{"status"}),
+		timer: NewTimer(
+			scope,
+			fmt.Sprintf("%s_duration", name),
+			opts.tOpts...,
+		),
+		started: startedCounter,
+		finished: scope.CounterVector(
+			fmt.Sprintf("%s_total", name),
+			[]string{"status"},
+		),
 	}
 }
 
