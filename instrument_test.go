@@ -30,12 +30,12 @@ func TestInstrument(t *testing.T) {
 				assert.Equal(
 					t,
 					[]Int64Snapshot{
-						Int64Snapshot{
+						{
 							Name:   "foo_started_total",
 							Labels: map[string]string{},
 							Value:  1,
 						},
-						Int64Snapshot{
+						{
 							Name:   "foo_total",
 							Labels: map[string]string{"status": "success"},
 							Value:  1,
@@ -64,6 +64,29 @@ func TestInstrument(t *testing.T) {
 			},
 		},
 		{
+			name: "disable started counter",
+			timerFn: func(c Collector) Instrument {
+				return NewInstrument(
+					RootScope(c),
+					"foo",
+					DisableStartedCounter(),
+				)
+			},
+			assert: func(t *testing.T, s Snapshot) {
+				assert.Equal(
+					t,
+					[]Int64Snapshot{
+						{
+							Name:   "foo_total",
+							Labels: map[string]string{"status": "success"},
+							Value:  1,
+						},
+					},
+					s.Counters,
+				)
+			},
+		},
+		{
 			name: "custom error formatter",
 			timerFn: func(c Collector) Instrument {
 				return NewInstrument(
@@ -78,12 +101,12 @@ func TestInstrument(t *testing.T) {
 				assert.Equal(
 					t,
 					[]Int64Snapshot{
-						Int64Snapshot{
+						{
 							Name:   "foo_started_total",
 							Labels: map[string]string{},
 							Value:  1,
 						},
-						Int64Snapshot{
+						{
 							Name:   "foo_total",
 							Labels: map[string]string{"status": "custom"},
 							Value:  1,
@@ -106,12 +129,12 @@ func TestInstrument(t *testing.T) {
 				assert.Equal(
 					t,
 					[]Int64Snapshot{
-						Int64Snapshot{
+						{
 							Name:   "foo_started_total",
 							Labels: map[string]string{},
 							Value:  1,
 						},
-						Int64Snapshot{
+						{
 							Name:   "foo_total",
 							Labels: map[string]string{"status": "mock"},
 							Value:  1,

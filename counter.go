@@ -36,3 +36,13 @@ type reorderCounterVector struct {
 func (rcv reorderCounterVector) WithLabels(ls ...string) Counter {
 	return rcv.cv.WithLabels(rcv.order(ls)...)
 }
+
+type noopCounter struct{}
+
+func (noopCounter) Inc()       {}
+func (noopCounter) Add(int64)  {}
+func (noopCounter) Get() int64 { return 0 }
+
+type noopCounterVector struct{}
+
+func (noopCounterVector) WithLabels(...string) Counter { return &noopCounter{} }

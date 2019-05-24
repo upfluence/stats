@@ -9,8 +9,15 @@ type Instrument interface {
 type InstrumentOption func(*instrumentOptions)
 
 var defaultOptions = instrumentOptions{
-	formatter:   defaultFormatter,
-	timerSuffix: "_seconds",
+	formatter:    defaultFormatter,
+	timerSuffix:  "_seconds",
+	trackStarted: true,
+}
+
+func DisableStartedCounter() InstrumentOption {
+	return func(opts *instrumentOptions) {
+		opts.trackStarted = false
+	}
 }
 
 func WithFormatter(f ErrorFormatter) InstrumentOption {
@@ -32,16 +39,25 @@ func WithTimerSuffixOptions(suffix string) InstrumentOption {
 }
 
 type instrumentOptions struct {
-	hOpts       []HistogramOption
-	formatter   ErrorFormatter
-	timerSuffix string
+	hOpts        []HistogramOption
+	formatter    ErrorFormatter
+	timerSuffix  string
+	trackStarted bool
 }
 
 func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrument {
-	opts := defaultOptions
+	var (
+		opts = defaultOptions
+
+		startedCounter Counter = &noopCounter{}
+	)
 
 	for _, opt := range iOpts {
 		opt(&opts)
+	}
+
+	if opts.trackStarted {
+		startedCounter = scope.Counter(name + "_started_total")
 	}
 
 	return &instrument{
@@ -51,7 +67,7 @@ func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrume
 			fmt.Sprintf("%s_duration%s", name, opts.timerSuffix),
 			opts.hOpts...,
 		),
-		started:  scope.Counter(name + "_started_total"),
+		started:  startedCounter,
 		finished: scope.CounterVector(name+"_total", []string{"status"}),
 	}
 }
