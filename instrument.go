@@ -11,6 +11,7 @@ type InstrumentOption func(*instrumentOptions)
 var defaultOptions = instrumentOptions{
 	formatter:    defaultFormatter,
 	trackStarted: true,
+	counterLabel: "status",
 }
 
 func DisableStartedCounter() InstrumentOption {
@@ -25,6 +26,12 @@ func WithFormatter(f ErrorFormatter) InstrumentOption {
 	}
 }
 
+func WithCounterLabel(s string) InstrumentOption {
+	return func(opts *instrumentOptions) {
+		opts.counterLabel = s
+	}
+}
+
 func WithTimerOptions(tOpts ...TimerOption) InstrumentOption {
 	return func(opts *instrumentOptions) {
 		opts.tOpts = tOpts
@@ -35,6 +42,7 @@ type instrumentOptions struct {
 	formatter    ErrorFormatter
 	tOpts        []TimerOption
 	trackStarted bool
+	counterLabel string
 }
 
 func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrument {
@@ -62,7 +70,7 @@ func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrume
 		started: startedCounter,
 		finished: scope.CounterVector(
 			fmt.Sprintf("%s_total", name),
-			[]string{"status"},
+			[]string{opts.counterLabel},
 		),
 	}
 }
