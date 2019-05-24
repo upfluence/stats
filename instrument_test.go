@@ -22,7 +22,9 @@ func TestInstrument(t *testing.T) {
 				return NewInstrument(
 					RootScope(c),
 					"foo",
-					WithHistogramOptions(StaticBuckets(nil)),
+					WithTimerOptions(
+						WithHistogramOptions(StaticBuckets(nil)),
+					),
 				)
 			},
 			assert: func(t *testing.T, s Snapshot) {
@@ -55,8 +57,10 @@ func TestInstrument(t *testing.T) {
 				return NewInstrument(
 					RootScope(c),
 					"foo",
-					WithHistogramOptions(StaticBuckets(nil)),
-					WithTimerSuffixOptions("_custom"),
+					WithTimerOptions(
+						WithHistogramOptions(StaticBuckets(nil)),
+						WithTimerSuffix("_custom"),
+					),
 				)
 			},
 			assert: func(t *testing.T, s Snapshot) {
