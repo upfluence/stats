@@ -50,6 +50,20 @@ func TestInstrument(t *testing.T) {
 			},
 		},
 		{
+			name: "custom timer suffix",
+			timerFn: func(c Collector) Instrument {
+				return NewInstrument(
+					RootScope(c),
+					"foo",
+					WithHistogramOptions(StaticBuckets(nil)),
+					WithTimerSuffixOptions("_custom"),
+				)
+			},
+			assert: func(t *testing.T, s Snapshot) {
+				assert.Equal(t, "foo_duration_custom", s.Histograms[0].Name)
+			},
+		},
+		{
 			name: "custom error formatter",
 			timerFn: func(c Collector) Instrument {
 				return NewInstrument(

@@ -38,7 +38,7 @@ func (sw *stopWatch) Stop() {
 }
 
 func NewTimer(scope Scope, name string, opts ...HistogramOption) Timer {
-	var t = &timer{Histogram: scope.Histogram(name+"_seconds", opts...)}
+	var t = &timer{Histogram: scope.Histogram(name, opts...)}
 
 	t.p = sync.Pool{New: func() interface{} { return &stopWatch{timer: t} }}
 

@@ -1,12 +1,17 @@
 package stats
 
+import "fmt"
+
 type Instrument interface {
 	Exec(func() error) error
 }
 
 type InstrumentOption func(*instrumentOptions)
 
-var defaultOptions = instrumentOptions{formatter: defaultFormatter}
+var defaultOptions = instrumentOptions{
+	formatter:   defaultFormatter,
+	timerSuffix: "_seconds",
+}
 
 func WithFormatter(f ErrorFormatter) InstrumentOption {
 	return func(opts *instrumentOptions) {
@@ -20,9 +25,16 @@ func WithHistogramOptions(hOpts ...HistogramOption) InstrumentOption {
 	}
 }
 
+func WithTimerSuffixOptions(suffix string) InstrumentOption {
+	return func(opts *instrumentOptions) {
+		opts.timerSuffix = suffix
+	}
+}
+
 type instrumentOptions struct {
-	hOpts     []HistogramOption
-	formatter ErrorFormatter
+	hOpts       []HistogramOption
+	formatter   ErrorFormatter
+	timerSuffix string
 }
 
 func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrument {
@@ -34,9 +46,13 @@ func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrume
 
 	return &instrument{
 		instrumentOptions: opts,
-		timer:             NewTimer(scope, name+"_duration", opts.hOpts...),
-		started:           scope.Counter(name + "_started_total"),
-		finished:          scope.CounterVector(name+"_total", []string{"status"}),
+		timer: NewTimer(
+			scope,
+			fmt.Sprintf("%s_duration%s", name, opts.timerSuffix),
+			opts.hOpts...,
+		),
+		started:  scope.Counter(name + "_started_total"),
+		finished: scope.CounterVector(name+"_total", []string{"status"}),
 	}
 }
 
