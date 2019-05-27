@@ -52,6 +52,23 @@ func TestInstrument(t *testing.T) {
 			},
 		},
 		{
+			name: "custom counter label",
+			timerFn: func(c Collector) Instrument {
+				return NewInstrument(
+					RootScope(c),
+					"foo",
+					WithCounterLabel("result"),
+				)
+			},
+			assert: func(t *testing.T, s Snapshot) {
+				assert.Equal(
+					t,
+					map[string]string{"result": "success"},
+					s.Counters[1].Labels,
+				)
+			},
+		},
+		{
 			name: "custom timer suffix",
 			timerFn: func(c Collector) Instrument {
 				return NewInstrument(
