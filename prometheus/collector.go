@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/upfluence/stats"
@@ -24,8 +25,10 @@ func NewCollector(r prometheus.Registerer) *Collector {
 	return c
 }
 
-func (c *Collector) Close() error          { return nil }
-func (c *Collector) Handler() http.Handler { return prometheus.Handler() }
+func (c *Collector) Close() error { return nil }
+func (c *Collector) Handler() http.Handler {
+	return promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{})
+}
 
 func (c *Collector) RegisterHistogram(n string, g stats.HistogramVectorGetter) {
 	c.r.MustRegister(
