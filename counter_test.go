@@ -58,6 +58,22 @@ func TestCounter(t *testing.T) {
 			),
 		},
 		{
+			name: "simple counter on scope and root scope",
+			mutate: func(s Scope) {
+				s.Scope(
+					"bar",
+					map[string]string{"fiz": "buz"},
+				).RootScope().Counter("foo").Inc()
+			},
+			introspect: snapshotEqual(
+				Snapshot{
+					Counters: []Int64Snapshot{
+						{Name: "foo", Labels: map[string]string{}, Value: 1},
+					},
+				},
+			),
+		},
+		{
 			name: "labeled counter on root",
 			mutate: func(s Scope) {
 				s.CounterVector("foo", []string{"bar"}).WithLabels("buz").Add(42)
