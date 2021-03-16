@@ -140,11 +140,7 @@ func (rs *rootScope) registerGauge(n string, ls []string) GaugeVector {
 
 	rs.assertMetricUniqueness(n)
 
-	v := &atomicInt64Vector{
-		labels:    ls,
-		cs:        make(map[uint64]*atomicInt64),
-		marshaler: newDefaultMarshaler(),
-	}
+	v := newAtomicInt64Vector(ls)
 
 	rs.gauges[n] = v
 	rs.c.RegisterGauge(n, v)
@@ -165,11 +161,7 @@ func (rs *rootScope) registerCounter(n string, ls []string) CounterVector {
 
 	rs.assertMetricUniqueness(n)
 
-	v := &atomicInt64Vector{
-		labels:    ls,
-		cs:        make(map[uint64]*atomicInt64),
-		marshaler: newDefaultMarshaler(),
-	}
+	v := newAtomicInt64Vector(ls)
 
 	rs.counters[n] = v
 	rs.c.RegisterCounter(n, v)
