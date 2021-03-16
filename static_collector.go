@@ -1,6 +1,10 @@
 package stats
 
-import "sort"
+import (
+	"bytes"
+	"encoding/json"
+	"sort"
+)
 
 type StaticCollector struct {
 	counters   map[string]Int64VectorGetter
@@ -64,6 +68,15 @@ type Snapshot struct {
 	Histograms []HistogramSnapshot
 }
 
+func compareLabels(x, y map[string]string) int {
+	var (
+		xj, _ = json.Marshal(x)
+		yj, _ = json.Marshal(y)
+	)
+
+	return bytes.Compare(xj, yj)
+}
+
 type Int64Snapshots []Int64Snapshot
 
 func (ss Int64Snapshots) Len() int { return len(ss) }
@@ -73,14 +86,26 @@ func (ss Int64Snapshots) Less(i int, j int) bool {
 		return ss[i].Name < ss[j].Name
 	}
 
-	if ss[i].Value != ss[j].Value {
-		return ss[i].Value < ss[j].Value
-	}
-
-	return len(ss[i].Labels) < len(ss[j].Labels)
+	return compareLabels(ss[i].Labels, ss[j].Labels) < 0
 }
 
 func (ss Int64Snapshots) Swap(i int, j int) {
+	ss[j], ss[i] = ss[i], ss[j]
+}
+
+type HistogramSnapshots []HistogramSnapshot
+
+func (ss HistogramSnapshots) Len() int { return len(ss) }
+
+func (ss HistogramSnapshots) Less(i int, j int) bool {
+	if ss[i].Name != ss[j].Name {
+		return ss[i].Name < ss[j].Name
+	}
+
+	return compareLabels(ss[i].Value.Tags, ss[j].Value.Tags) < 0
+}
+
+func (ss HistogramSnapshots) Swap(i int, j int) {
 	ss[j], ss[i] = ss[i], ss[j]
 }
 
@@ -106,6 +131,7 @@ func (c *StaticCollector) Get() Snapshot {
 
 	sort.Sort(Int64Snapshots(counters))
 	sort.Sort(Int64Snapshots(gauges))
+	sort.Sort(HistogramSnapshots(histograms))
 
 	return Snapshot{Counters: counters, Gauges: gauges, Histograms: histograms}
 }
