@@ -1,10 +1,49 @@
 package stats
 
 import (
-	"fmt"
 	"sync"
 	"time"
 )
+
+type TimerVector interface {
+	WithLabels(...string) Timer
+}
+
+type timerVector struct {
+	entityVector
+
+	scope Scope
+	name  string
+	opts  timerOptions
+}
+
+func NewTimerVector(scope Scope, name string, labels []string, opts ...TimerOption) TimerVector {
+	var tv = timerVector{
+		entityVector: entityVector{
+			marshaler: newDefaultMarshaler(),
+			labels:    labels,
+		},
+		scope: scope,
+		name:  name,
+		opts:  defaultTimerOptions,
+	}
+
+	for _, opt := range opts {
+		opt(&tv.opts)
+	}
+
+	tv.newFunc = tv.newTimer
+
+	return &tv
+}
+
+func (tv *timerVector) newTimer(vs map[string]string) interface{} {
+	return newTimer(tv.scope.Scope("", vs), tv.name, tv.opts)
+}
+
+func (tv *timerVector) WithLabels(ls ...string) Timer {
+	return tv.entity(ls).(*timer)
+}
 
 type StopWatch interface {
 	Stop()
@@ -68,14 +107,13 @@ func NewTimer(scope Scope, name string, tOpts ...TimerOption) Timer {
 		opt(&opts)
 	}
 
-	var t = &timer{
-		Histogram: scope.Histogram(
-			fmt.Sprintf("%s%s", name, opts.suffix),
-			opts.hOpts...,
-		),
-	}
+	return newTimer(scope, name, opts)
+}
 
-	t.p = sync.Pool{New: func() interface{} { return &stopWatch{timer: t} }}
+func newTimer(scope Scope, name string, opts timerOptions) *timer {
+	var t = timer{Histogram: scope.Histogram(name+opts.suffix, opts.hOpts...)}
 
-	return t
+	t.p = sync.Pool{New: func() interface{} { return &stopWatch{timer: &t} }}
+
+	return &t
 }
