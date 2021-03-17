@@ -2,13 +2,53 @@ package stats
 
 import "fmt"
 
+type InstrumentVector interface {
+	WithLabels(...string) Instrument
+}
+
+type instrumentVector struct {
+	entityVector
+
+	scope Scope
+	name  string
+	opts  instrumentOptions
+}
+
+func NewInstrumentVector(scope Scope, name string, labels []string, opts ...InstrumentOption) InstrumentVector {
+	var iv = instrumentVector{
+		entityVector: entityVector{
+			marshaler: newDefaultMarshaler(),
+			labels:    labels,
+		},
+		scope: scope,
+		name:  name,
+		opts:  defaultInstrumentOptions,
+	}
+
+	for _, opt := range opts {
+		opt(&iv.opts)
+	}
+
+	iv.newFunc = iv.newInstrument
+
+	return &iv
+}
+
+func (iv *instrumentVector) newInstrument(vs map[string]string) interface{} {
+	return newInstrument(iv.scope.Scope("", vs), iv.name, iv.opts)
+}
+
+func (iv *instrumentVector) WithLabels(ls ...string) Instrument {
+	return iv.entity(ls).(*instrument)
+}
+
 type Instrument interface {
 	Exec(func() error) error
 }
 
 type InstrumentOption func(*instrumentOptions)
 
-var defaultOptions = instrumentOptions{
+var defaultInstrumentOptions = instrumentOptions{
 	formatter:    defaultFormatter,
 	trackStarted: true,
 	counterLabel: "status",
@@ -46,15 +86,17 @@ type instrumentOptions struct {
 }
 
 func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrument {
-	var (
-		opts = defaultOptions
-
-		startedCounter Counter = &noopCounter{}
-	)
+	var opts = defaultInstrumentOptions
 
 	for _, opt := range iOpts {
 		opt(&opts)
 	}
+
+	return newInstrument(scope, name, opts)
+}
+
+func newInstrument(scope Scope, name string, opts instrumentOptions) *instrument {
+	var startedCounter Counter = noopCounter{}
 
 	if opts.trackStarted {
 		startedCounter = scope.Counter(fmt.Sprintf("%s_started_total", name))

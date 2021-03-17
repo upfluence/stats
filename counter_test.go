@@ -124,13 +124,13 @@ func TestCounter(t *testing.T) {
 					Counters: []Int64Snapshot{
 						{
 							Name:   "foo",
-							Labels: map[string]string{"bar": "buz"},
-							Value:  1,
+							Labels: map[string]string{"bar": "bua"},
+							Value:  2,
 						},
 						{
 							Name:   "foo",
-							Labels: map[string]string{"bar": "bua"},
-							Value:  2,
+							Labels: map[string]string{"bar": "buz"},
+							Value:  1,
 						},
 					},
 				},

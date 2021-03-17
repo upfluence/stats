@@ -11,14 +11,14 @@ var errMock = errors.New("mock")
 
 func TestInstrument(t *testing.T) {
 	for _, tt := range []struct {
-		name    string
-		timerFn func(Collector) Instrument
-		in      error
-		assert  func(*testing.T, Snapshot)
+		name         string
+		instrumentFn func(Collector) Instrument
+		in           error
+		assert       func(*testing.T, Snapshot)
 	}{
 		{
 			name: "plain success",
-			timerFn: func(c Collector) Instrument {
+			instrumentFn: func(c Collector) Instrument {
 				return NewInstrument(
 					RootScope(c),
 					"foo",
@@ -53,7 +53,7 @@ func TestInstrument(t *testing.T) {
 		},
 		{
 			name: "custom counter label",
-			timerFn: func(c Collector) Instrument {
+			instrumentFn: func(c Collector) Instrument {
 				return NewInstrument(
 					RootScope(c),
 					"foo",
@@ -70,7 +70,7 @@ func TestInstrument(t *testing.T) {
 		},
 		{
 			name: "custom timer suffix",
-			timerFn: func(c Collector) Instrument {
+			instrumentFn: func(c Collector) Instrument {
 				return NewInstrument(
 					RootScope(c),
 					"foo",
@@ -86,7 +86,7 @@ func TestInstrument(t *testing.T) {
 		},
 		{
 			name: "disable started counter",
-			timerFn: func(c Collector) Instrument {
+			instrumentFn: func(c Collector) Instrument {
 				return NewInstrument(
 					RootScope(c),
 					"foo",
@@ -109,7 +109,7 @@ func TestInstrument(t *testing.T) {
 		},
 		{
 			name: "custom error formatter",
-			timerFn: func(c Collector) Instrument {
+			instrumentFn: func(c Collector) Instrument {
 				return NewInstrument(
 					RootScope(c),
 					"foo",
@@ -141,7 +141,7 @@ func TestInstrument(t *testing.T) {
 		},
 		{
 			name: "plain error",
-			timerFn: func(c Collector) Instrument {
+			instrumentFn: func(c Collector) Instrument {
 				return NewInstrument(RootScope(c), "foo")
 			},
 			in: errMock,
@@ -170,7 +170,7 @@ func TestInstrument(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			c := NewStaticCollector()
-			i := tt.timerFn(c)
+			i := tt.instrumentFn(c)
 
 			err := i.Exec(func() error { return tt.in })
 
@@ -178,4 +178,50 @@ func TestInstrument(t *testing.T) {
 			tt.assert(t, c.Get())
 		})
 	}
+}
+
+func TestInstrumentVector(t *testing.T) {
+	c := NewStaticCollector()
+	iv := NewInstrumentVector(
+		RootScope(c),
+		"example",
+		[]string{"foo", "bar"},
+	)
+
+	_ = iv.WithLabels("foo", "bar").Exec(func() error { return nil })
+	_ = iv.WithLabels("biz", "buz").Exec(func() error { return nil })
+	_ = iv.WithLabels("foo", "bar").Exec(func() error { return nil })
+	_ = iv.WithLabels("foo", "bar").Exec(func() error { return errMock })
+
+	assert.ElementsMatch(
+		t,
+		[]Int64Snapshot{
+			{
+				Name:   "example_started_total",
+				Labels: map[string]string{"bar": "buz", "foo": "biz"},
+				Value:  1,
+			},
+			{
+				Name:   "example_started_total",
+				Labels: map[string]string{"bar": "bar", "foo": "foo"},
+				Value:  3,
+			},
+			{
+				Name:   "example_total",
+				Labels: map[string]string{"bar": "bar", "foo": "foo", "status": "mock"},
+				Value:  1,
+			},
+			{
+				Name:   "example_total",
+				Labels: map[string]string{"bar": "bar", "foo": "foo", "status": "success"},
+				Value:  2,
+			},
+			{
+				Name:   "example_total",
+				Labels: map[string]string{"bar": "buz", "foo": "biz", "status": "success"},
+				Value:  1,
+			},
+		},
+		c.Get().Counters,
+	)
 }

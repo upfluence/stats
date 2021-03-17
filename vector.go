@@ -1,6 +1,9 @@
 package stats
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type Int64Value struct {
 	Tags  map[string]string
@@ -13,12 +16,17 @@ type Int64VectorGetter interface {
 }
 
 type atomicInt64Vector struct {
-	labels []string
+	entityVector
+}
 
-	mu sync.RWMutex
-	cs map[uint64]*atomicInt64
-
-	marshaler labelMarshaler
+func newAtomicInt64Vector(ls []string) *atomicInt64Vector {
+	return &atomicInt64Vector{
+		entityVector: entityVector{
+			labels:    ls,
+			marshaler: newDefaultMarshaler(),
+			newFunc:   func(map[string]string) interface{} { return &atomicInt64{} },
+		},
+	}
 }
 
 func (v *atomicInt64Vector) Labels() []string { return v.labels }
@@ -34,34 +42,60 @@ func (v *atomicInt64Vector) buildTags(key uint64) map[string]string {
 }
 
 func (v *atomicInt64Vector) Get() []*Int64Value {
-	var res = make([]*Int64Value, 0, len(v.cs))
+	var res []*Int64Value
 
-	for k, c := range v.cs {
-		res = append(res, &Int64Value{Tags: v.buildTags(k), Value: c.Get()})
-	}
+	v.entities.Range(func(k, vv interface{}) bool {
+		res = append(
+			res,
+			&Int64Value{
+				Tags:  v.buildTags(k.(uint64)),
+				Value: vv.(*atomicInt64).Get(),
+			},
+		)
+
+		return true
+	})
 
 	return res
 }
 
 func (v *atomicInt64Vector) fetchValue(ls []string) *atomicInt64 {
-	if len(ls) != len(v.labels) {
-		panic("Not the correct number of labels")
+	return v.entity(ls).(*atomicInt64)
+}
+
+type entityVector struct {
+	newFunc func(map[string]string) interface{}
+
+	labels   []string
+	entities sync.Map
+
+	marshaler labelMarshaler
+}
+
+func (ev *entityVector) entity(ls []string) interface{} {
+	if len(ls) != len(ev.labels) {
+		panic(
+			fmt.Sprintf(
+				"Not the correct number of labels: labels: %v, values: %v",
+				ev.labels,
+				ls,
+			),
+		)
 	}
 
-	k := v.marshaler.marshal(ls)
-
-	v.mu.RLock()
-	c, ok := v.cs[k]
-	v.mu.RUnlock()
+	k := ev.marshaler.marshal(ls)
+	v, ok := ev.entities.Load(k)
 
 	if ok {
-		return c
+		return v
 	}
 
-	v.mu.Lock()
-	c = &atomicInt64{}
-	v.cs[k] = c
-	v.mu.Unlock()
+	vs := make(map[string]string, len(ev.labels))
 
-	return c
+	for i, k := range ev.labels {
+		vs[k] = ls[i]
+	}
+
+	v, _ = ev.entities.LoadOrStore(k, ev.newFunc(vs))
+	return v
 }
