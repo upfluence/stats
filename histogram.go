@@ -55,7 +55,7 @@ func (hv *histogramVector) Cutoffs() []float64 { return hv.cutoffs }
 func (hv *histogramVector) buildTags(key uint64) map[string]string {
 	var tags = make(map[string]string, len(hv.labels))
 
-	for i, val := range hv.marshaler.unmarshal(key) {
+	for i, val := range hv.marshaler.unmarshal(key, len(hv.labels)) {
 		tags[hv.labels[i]] = val
 	}
 

@@ -5,6 +5,8 @@ import "sync"
 const (
 	offset64 = 14695981039346656037
 	prime64  = 1099511628211
+
+	magicRune = '\U0010FFFF' + 1
 )
 
 // hashNew initializies a new fnv64a hash value.
@@ -18,23 +20,32 @@ func hashAdd(h uint64, s string) uint64 {
 		h ^= uint64(s[i])
 		h *= prime64
 	}
+
+	h ^= magicRune
+	h *= prime64
+
 	return h
 }
 
 type labelMarshaler interface {
 	marshal([]string) uint64
-	unmarshal(uint64) []string
+	unmarshal(uint64, int) []string
 }
 
 func newDefaultMarshaler() labelMarshaler {
 	return &hashingMarshaler{
-		st: make(map[uint64][]string),
+		st: make(map[hashingKey][]string),
 	}
+}
+
+type hashingKey struct {
+	hash uint64
+	len  int
 }
 
 type hashingMarshaler struct {
 	sync.RWMutex
-	st map[uint64][]string
+	st map[hashingKey][]string
 }
 
 func (hm *hashingMarshaler) marshal(vs []string) uint64 {
@@ -45,15 +56,15 @@ func (hm *hashingMarshaler) marshal(vs []string) uint64 {
 	}
 
 	hm.Lock()
-	hm.st[res] = vs
+	hm.st[hashingKey{hash: res, len: len(vs)}] = vs
 	hm.Unlock()
 
 	return res
 }
 
-func (hm *hashingMarshaler) unmarshal(h uint64) []string {
+func (hm *hashingMarshaler) unmarshal(h uint64, len int) []string {
 	hm.RLock()
 	defer hm.RUnlock()
 
-	return hm.st[h]
+	return hm.st[hashingKey{hash: h, len: len}]
 }

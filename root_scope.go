@@ -7,8 +7,9 @@ import (
 )
 
 type rootScope struct {
-	c Collector
-	sync.Mutex
+	c  Collector
+	mu sync.Mutex
+	lm labelMarshaler
 
 	counters   map[string]*atomicInt64Vector
 	gauges     map[string]*atomicInt64Vector
@@ -19,6 +20,7 @@ func RootScope(c Collector) Scope {
 	return scopeWrapper{
 		&rootScope{
 			c:          c,
+			lm:         newDefaultMarshaler(),
 			counters:   make(map[string]*atomicInt64Vector),
 			gauges:     make(map[string]*atomicInt64Vector),
 			histograms: make(map[string]*histogramVector),
@@ -72,8 +74,8 @@ func buildLabelOrderer(base, target []string) labelOrderer {
 		targetCopy = append(target[:0:0], target...)
 	)
 
-	sort.Sort(sort.StringSlice(baseCopy))
-	sort.Sort(sort.StringSlice(targetCopy))
+	sort.Strings(baseCopy)
+	sort.Strings(targetCopy)
 
 	for i, bv := range baseCopy {
 		if targetCopy[i] != bv {
@@ -96,8 +98,8 @@ func buildLabelOrderer(base, target []string) labelOrderer {
 }
 
 func (rs *rootScope) registerHistogram(n string, ls []string, opts ...HistogramOption) HistogramVector {
-	rs.Lock()
-	defer rs.Unlock()
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
 
 	if h, ok := rs.histograms[n]; ok {
 		// TODO: ensure the cutoffs are similare or panic
@@ -114,7 +116,7 @@ func (rs *rootScope) registerHistogram(n string, ls []string, opts ...HistogramO
 		cutoffs:   defaultCutoffs,
 		labels:    ls,
 		hs:        map[uint64]*histogram{},
-		marshaler: newDefaultMarshaler(),
+		marshaler: rs.lm,
 	}
 
 	for _, opt := range opts {
@@ -128,8 +130,8 @@ func (rs *rootScope) registerHistogram(n string, ls []string, opts ...HistogramO
 }
 
 func (rs *rootScope) registerGauge(n string, ls []string) GaugeVector {
-	rs.Lock()
-	defer rs.Unlock()
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
 
 	if c, ok := rs.gauges[n]; ok {
 		return reorderGaugeVector{
@@ -140,7 +142,7 @@ func (rs *rootScope) registerGauge(n string, ls []string) GaugeVector {
 
 	rs.assertMetricUniqueness(n)
 
-	v := newAtomicInt64Vector(ls)
+	v := newAtomicInt64Vector(ls, rs.lm)
 
 	rs.gauges[n] = v
 	rs.c.RegisterGauge(n, v)
@@ -149,8 +151,8 @@ func (rs *rootScope) registerGauge(n string, ls []string) GaugeVector {
 }
 
 func (rs *rootScope) registerCounter(n string, ls []string) CounterVector {
-	rs.Lock()
-	defer rs.Unlock()
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
 
 	if c, ok := rs.counters[n]; ok {
 		return reorderCounterVector{
@@ -161,7 +163,7 @@ func (rs *rootScope) registerCounter(n string, ls []string) CounterVector {
 
 	rs.assertMetricUniqueness(n)
 
-	v := newAtomicInt64Vector(ls)
+	v := newAtomicInt64Vector(ls, rs.lm)
 
 	rs.counters[n] = v
 	rs.c.RegisterCounter(n, v)

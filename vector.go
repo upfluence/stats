@@ -19,11 +19,11 @@ type atomicInt64Vector struct {
 	entityVector
 }
 
-func newAtomicInt64Vector(ls []string) *atomicInt64Vector {
+func newAtomicInt64Vector(ls []string, lm labelMarshaler) *atomicInt64Vector {
 	return &atomicInt64Vector{
 		entityVector: entityVector{
 			labels:    ls,
-			marshaler: newDefaultMarshaler(),
+			marshaler: lm,
 			newFunc:   func(map[string]string) interface{} { return &atomicInt64{} },
 		},
 	}
@@ -34,7 +34,7 @@ func (v *atomicInt64Vector) Labels() []string { return v.labels }
 func (v *atomicInt64Vector) buildTags(key uint64) map[string]string {
 	var tags = make(map[string]string, len(v.labels))
 
-	for i, val := range v.marshaler.unmarshal(key) {
+	for i, val := range v.marshaler.unmarshal(key, len(v.labels)) {
 		tags[v.labels[i]] = val
 	}
 
