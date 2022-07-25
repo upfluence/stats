@@ -157,7 +157,7 @@ func TestInstrument(t *testing.T) {
 						},
 						{
 							Name:   "foo_total",
-							Labels: map[string]string{"status": "mock"},
+							Labels: map[string]string{"status": "failed"},
 							Value:  1,
 						},
 					},
@@ -208,7 +208,7 @@ func TestInstrumentVector(t *testing.T) {
 			},
 			{
 				Name:   "example_total",
-				Labels: map[string]string{"bar": "bar", "foo": "foo", "status": "mock"},
+				Labels: map[string]string{"bar": "bar", "foo": "foo", "status": "failed"},
 				Value:  1,
 			},
 			{
