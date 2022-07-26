@@ -139,10 +139,12 @@ func (i *instrument) Exec(fn func() error) error {
 	return err
 }
 
+// defaultFormatter , look into https://github.com/upfluence/errors/blob/master/stats/statuser.go#L36
+// for more advanced reporting
 func defaultFormatter(err error) string {
 	if err == nil {
 		return "success"
 	}
 
-	return err.Error()
+	return "failed"
 }
