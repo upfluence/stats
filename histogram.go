@@ -190,3 +190,21 @@ type reorderHistogramVector struct {
 func (rhv reorderHistogramVector) WithLabels(ls ...string) Histogram {
 	return rhv.hv.WithLabels(rhv.order(ls)...)
 }
+
+var (
+	NoopHistogram       Histogram       = noopHistogram{}
+	NoopHistogramVector HistogramVector = noopHistogramVector{}
+)
+
+type noopHistogram struct{}
+
+func (noopHistogram) Record(float64)    {}
+func (noopHistogram) Count() int64      { return 0 }
+func (noopHistogram) Sum() float64      { return 0 }
+func (noopHistogram) Buckets() []Bucket { return nil }
+
+type noopHistogramVector struct{}
+
+func (noopHistogramVector) WithLabels(...string) Histogram {
+	return noopHistogram{}
+}

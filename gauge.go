@@ -34,3 +34,17 @@ type reorderGaugeVector struct {
 func (rgv reorderGaugeVector) WithLabels(ls ...string) Gauge {
 	return rgv.gv.WithLabels(rgv.order(ls)...)
 }
+
+var (
+	NoopGauge       Gauge       = noopGauge{}
+	NoopGaugeVector GaugeVector = noopGaugeVector{}
+)
+
+type noopGauge struct{}
+
+func (noopGauge) Update(int64) {}
+func (noopGauge) Get() int64   { return 0 }
+
+type noopGaugeVector struct{}
+
+func (noopGaugeVector) WithLabels(...string) Gauge { return noopGauge{} }

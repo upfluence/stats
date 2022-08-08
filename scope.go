@@ -185,3 +185,32 @@ func mergeStringMaps(kvs ...map[string]string) map[string]string {
 
 	return res
 }
+
+var NoopScope Scope = noopScope{}
+
+type noopScope struct{}
+
+func (noopScope) namespace() string       { return "" }
+func (noopScope) tags() map[string]string { return nil }
+func (noopScope) rootScope() *rootScope   { return nil }
+
+func (noopScope) Counter(string) Counter { return NoopCounter }
+func (noopScope) CounterVector(string, []string) CounterVector {
+	return NoopCounterVector
+}
+
+func (noopScope) Gauge(string) Gauge { return NoopGauge }
+func (noopScope) GaugeVector(string, []string) GaugeVector {
+	return NoopGaugeVector
+}
+
+func (noopScope) Histogram(string, ...HistogramOption) Histogram {
+	return NoopHistogram
+}
+
+func (noopScope) HistogramVector(string, []string, ...HistogramOption) HistogramVector {
+	return NoopHistogramVector
+}
+
+func (noopScope) Scope(string, map[string]string) Scope { return noopScope{} }
+func (noopScope) RootScope() Scope                      { return noopScope{} }

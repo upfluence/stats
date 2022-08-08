@@ -37,6 +37,11 @@ func (rcv reorderCounterVector) WithLabels(ls ...string) Counter {
 	return rcv.cv.WithLabels(rcv.order(ls)...)
 }
 
+var (
+	NoopCounter       Counter       = noopCounter{}
+	NoopCounterVector CounterVector = noopCounterVector{}
+)
+
 type noopCounter struct{}
 
 func (noopCounter) Inc()       {}
@@ -45,4 +50,4 @@ func (noopCounter) Get() int64 { return 0 }
 
 type noopCounterVector struct{}
 
-func (noopCounterVector) WithLabels(...string) Counter { return &noopCounter{} }
+func (noopCounterVector) WithLabels(...string) Counter { return noopCounter{} }
