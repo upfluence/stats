@@ -4,10 +4,10 @@ import (
 	"math"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/upfluence/stats"
 )
@@ -153,4 +153,123 @@ func TestCollect(t *testing.T) {
 			tt.introspect(t, fs)
 		})
 	}
+}
+
+func TestMultiRegisterGauge(t *testing.T) {
+	r := prometheus.NewRegistry()
+	c := NewCollector(r)
+
+	for i := 0; i < 5; i++ {
+		s := stats.RootScope(c)
+		s.GaugeVector("foo", []string{"bar"}).WithLabels("buz").Update(1.)
+	}
+
+	fs, err := r.Gather()
+	assert.Nil(t, err)
+	mt := dto.MetricType_GAUGE
+	assert.Equal(
+		t,
+		[]*dto.MetricFamily{
+			&dto.MetricFamily{
+				Name: proto.String("foo"),
+				Help: proto.String("no help"),
+				Type: &mt,
+				Metric: []*dto.Metric{
+					&dto.Metric{
+						Label: []*dto.LabelPair{
+							&dto.LabelPair{
+								Name:  proto.String("bar"),
+								Value: proto.String("buz"),
+							},
+						},
+						Gauge: &dto.Gauge{Value: proto.Float64(1)},
+					},
+				},
+			},
+		},
+		fs,
+	)
+}
+
+func TestMultiRegisterCounter(t *testing.T) {
+	r := prometheus.NewRegistry()
+	c := NewCollector(r)
+
+	for i := 0; i < 5; i++ {
+		s := stats.RootScope(c)
+		s.CounterVector("foo", []string{"bar"}).WithLabels("buz").Inc()
+	}
+
+	fs, err := r.Gather()
+	assert.Nil(t, err)
+	mt := dto.MetricType_COUNTER
+	assert.Equal(
+		t,
+		[]*dto.MetricFamily{
+			&dto.MetricFamily{
+				Name: proto.String("foo"),
+				Help: proto.String("no help"),
+				Type: &mt,
+				Metric: []*dto.Metric{
+					&dto.Metric{
+						Label: []*dto.LabelPair{
+							&dto.LabelPair{
+								Name:  proto.String("bar"),
+								Value: proto.String("buz"),
+							},
+						},
+						Counter: &dto.Counter{Value: proto.Float64(5)},
+					},
+				},
+			},
+		},
+		fs,
+	)
+}
+
+func TestMultiRegisterHistogram(t *testing.T) {
+	r := prometheus.NewRegistry()
+	c := NewCollector(r)
+
+	for i := 0; i < 5; i++ {
+		s := stats.RootScope(c)
+		s.Histogram("foo", stats.StaticBuckets([]float64{1., 10.})).Record(5.)
+	}
+
+	fs, err := r.Gather()
+	assert.Nil(t, err)
+	mt := dto.MetricType_HISTOGRAM
+	assert.Equal(
+		t,
+		[]*dto.MetricFamily{
+			&dto.MetricFamily{
+				Name: proto.String("foo"),
+				Help: proto.String("no help"),
+				Type: &mt,
+				Metric: []*dto.Metric{
+					&dto.Metric{
+						Histogram: &dto.Histogram{
+							SampleCount: proto.Uint64(5),
+							SampleSum:   proto.Float64(25.),
+							Bucket: []*dto.Bucket{
+								&dto.Bucket{
+									CumulativeCount: proto.Uint64(0),
+									UpperBound:      proto.Float64(1.),
+								},
+								&dto.Bucket{
+									CumulativeCount: proto.Uint64(5),
+									UpperBound:      proto.Float64(10.),
+								},
+								&dto.Bucket{
+									CumulativeCount: proto.Uint64(5),
+									UpperBound:      proto.Float64(math.Inf(0)),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		fs,
+	)
 }
