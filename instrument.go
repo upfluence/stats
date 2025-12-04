@@ -20,6 +20,10 @@ type instrumentVector struct {
 
 // NewInstrumentVector creates a new instrument vector with the given scope, name, labels, and options.
 func NewInstrumentVector(scope Scope, name string, labels []string, opts ...InstrumentOption) InstrumentVector {
+	if _, ok := scope.(noopScope); ok {
+		return NoopInstrumentVector
+	}
+
 	var iv = instrumentVector{
 		entityVector: entityVector{
 			marshaler: newDefaultMarshaler(),
@@ -116,6 +120,10 @@ type instrumentOptions struct {
 //   - <name>_total{status="..."}: counter with status label
 //   - <name>_duration_seconds: histogram
 func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrument {
+	if _, ok := scope.(noopScope); ok {
+		return NoopInstrument
+	}
+
 	var opts = defaultInstrumentOptions
 
 	for _, opt := range iOpts {
@@ -180,3 +188,45 @@ func defaultFormatter(err error) string {
 
 	return "failed"
 }
+
+// ExecInstrument2 is a generic wrapper around Instrument.Exec that handles functions
+// returning both a value and an error. This is a convenience function for instrumenting
+// operations that return results.
+//
+// Note: The error from the instrumented function is tracked but not returned by this
+// function. Use Instrument.Exec directly if you need to handle the error.
+func ExecInstrument2[T any](i Instrument, fn func() (T, error)) (T, error) {
+	var res T
+
+	i.Exec(func() error {
+		var err error
+
+		res, err = fn()
+
+		return err
+	})
+
+	return res, nil
+}
+
+type noopInstrument struct{}
+
+func (n noopInstrument) Exec(fn func() error) error {
+	return fn()
+}
+
+type noopInstrumentVector struct{}
+
+func (n noopInstrumentVector) WithLabels(...string) Instrument {
+	return noopInstrument{}
+}
+
+var (
+	// NoopInstrument is an instrument that discards all operations.
+	// Useful for testing or when instrumentation is conditionally disabled.
+	NoopInstrument Instrument = noopInstrument{}
+
+	// NoopInstrumentVector is an instrument vector that returns noop instruments.
+	// Useful for testing or when instrumentation is conditionally disabled.
+	NoopInstrumentVector InstrumentVector = noopInstrumentVector{}
+)

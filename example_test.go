@@ -348,3 +348,18 @@ func ExampleNewStaticCollector() {
 	fmt.Printf("Counters: %d\n", len(snapshot.Counters))
 	// Output: Counters: 1
 }
+
+func ExampleExecInstrument2() {
+	collector := stats.NewStaticCollector()
+	scope := stats.RootScope(collector)
+
+	inst := stats.NewInstrument(scope, "fetch_user")
+
+	result, _ := stats.ExecInstrument2(inst, func() (string, error) {
+		// Simulate fetching user data
+		return "user123", nil
+	})
+
+	fmt.Printf("Result: %s\n", result)
+	// Output: Result: user123
+}
