@@ -21,6 +21,8 @@ var defaultCutoffs = []float64{
 	math.Inf(0),
 }
 
+// HistogramValue represents a snapshot of a histogram's state including
+// its tags, total count, sum, and bucket counts.
 type HistogramValue struct {
 	Tags map[string]string
 
@@ -29,13 +31,23 @@ type HistogramValue struct {
 	Buckets []Bucket
 }
 
+// HistogramVectorGetter provides read access to histogram vectors for collectors.
 type HistogramVectorGetter interface {
+	// Labels returns the label names for this histogram vector.
 	Labels() []string
+
+	// Cutoffs returns the upper bounds for each bucket.
 	Cutoffs() []float64
+
+	// Get returns all histogram values with their label combinations.
 	Get() []*HistogramValue
 }
 
+// HistogramVector is a multi-dimensional histogram that creates histogram instances
+// with specific label values.
 type HistogramVector interface {
+	// WithLabels returns a Histogram with the specified label values.
+	// The number of values must match the number of labels defined for this vector.
 	WithLabels(...string) Histogram
 }
 
@@ -114,16 +126,25 @@ func (hv *histogramVector) WithLabels(ls ...string) Histogram {
 	return h
 }
 
+// Bucket represents a single histogram bucket with its count and upper bound.
 type Bucket struct {
 	Count      int64
 	UpperBound float64
 }
 
+// Histogram tracks the distribution of values across predefined buckets.
+// Histograms are useful for measuring request durations, response sizes, etc.
 type Histogram interface {
+	// Record adds a single observation to the histogram.
 	Record(float64)
 
+	// Count returns the total number of observations.
 	Count() int64
+
+	// Sum returns the sum of all observed values.
 	Sum() float64
+
+	// Buckets returns the current state of all buckets.
 	Buckets() []Bucket
 }
 
@@ -167,6 +188,8 @@ func (h *histogram) Buckets() []Bucket {
 	return bs
 }
 
+// StaticBuckets creates a HistogramOption that configures custom bucket boundaries.
+// An infinity bucket is automatically appended to catch all values above the highest cutoff.
 func StaticBuckets(cutoffs []float64) HistogramOption {
 	return func(hv *histogramVector) {
 		hv.cutoffs = append(cutoffs, math.Inf(0))
@@ -192,7 +215,10 @@ func (rhv reorderHistogramVector) WithLabels(ls ...string) Histogram {
 }
 
 var (
-	NoopHistogram       Histogram       = noopHistogram{}
+	// NoopHistogram is a histogram that discards all operations.
+	NoopHistogram Histogram = noopHistogram{}
+
+	// NoopHistogramVector is a histogram vector that returns noop histograms.
 	NoopHistogramVector HistogramVector = noopHistogramVector{}
 )
 

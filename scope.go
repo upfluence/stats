@@ -11,21 +11,39 @@ type limitedScope interface {
 	rootScope() *rootScope
 }
 
+// HistogramOption configures a histogram with custom settings.
 type HistogramOption func(*histogramVector)
 
+// Scope is the primary interface for creating and organizing metrics.
+// Scopes support hierarchical organization through namespaces and tag inheritance.
+// Metrics created from a scope inherit the scope's namespace prefix and tags.
 type Scope interface {
 	limitedScope
 
+	// Counter creates or retrieves a counter metric with the given name.
 	Counter(string) Counter
+
+	// CounterVector creates or retrieves a counter vector with the given name and labels.
 	CounterVector(string, []string) CounterVector
 
+	// Gauge creates or retrieves a gauge metric with the given name.
 	Gauge(string) Gauge
+
+	// GaugeVector creates or retrieves a gauge vector with the given name and labels.
 	GaugeVector(string, []string) GaugeVector
 
+	// Histogram creates or retrieves a histogram metric with the given name and optional configuration.
 	Histogram(string, ...HistogramOption) Histogram
+
+	// HistogramVector creates or retrieves a histogram vector with the given name, labels, and optional configuration.
 	HistogramVector(string, []string, ...HistogramOption) HistogramVector
 
+	// Scope creates a child scope with the given namespace and tags.
+	// The namespace is appended to the parent's namespace with underscore separation.
+	// Tags are merged with the parent's tags, with child tags overriding parent values.
 	Scope(string, map[string]string) Scope
+
+	// RootScope returns the root scope, ignoring any namespace or tag hierarchy.
 	RootScope() Scope
 }
 
@@ -186,6 +204,8 @@ func mergeStringMaps(kvs ...map[string]string) map[string]string {
 	return res
 }
 
+// NoopScope is a scope implementation that discards all metrics.
+// Useful for testing or when metrics are conditionally disabled.
 var NoopScope Scope = noopScope{}
 
 type noopScope struct{}

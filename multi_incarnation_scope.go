@@ -79,10 +79,23 @@ func newMultiIncarnationScope(sc Scope, r *incarnationRegistry) *multiIncarnatio
 	}
 }
 
+// GlobalIncarnationScope wraps a scope to automatically add an "incarnation" label
+// to all metrics. The incarnation counter increments each time a metric with the
+// same name and labels is created, which typically happens on service restart.
+//
+// This allows tracking metrics across service restarts while maintaining historical data.
+// Useful for distinguishing between multiple instances or restarts of the same service.
+//
+// The incarnation label is automatically managed and should not be set manually.
 func GlobalIncarnationScope(sc Scope) Scope {
 	return newMultiIncarnationScope(sc, globalIncarnationRegistry)
 }
 
+// LocalIncarnationScope is similar to GlobalIncarnationScope but uses a custom
+// key name for the incarnation label instead of the default "incarnation".
+//
+// This is useful when you need multiple incarnation tracking scopes with different
+// semantic meanings.
 func LocalIncarnationScope(sc Scope, k string) Scope {
 	return newMultiIncarnationScope(
 		sc,

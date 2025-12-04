@@ -5,7 +5,11 @@ import (
 	"time"
 )
 
+// TimerVector is a multi-dimensional timer that creates timer instances
+// with specific label values.
 type TimerVector interface {
+	// WithLabels returns a Timer with the specified label values.
+	// The number of values must match the number of labels defined for this vector.
 	WithLabels(...string) Timer
 }
 
@@ -17,6 +21,7 @@ type timerVector struct {
 	opts  timerOptions
 }
 
+// NewTimerVector creates a new timer vector with the given scope, name, labels, and options.
 func NewTimerVector(scope Scope, name string, labels []string, opts ...TimerOption) TimerVector {
 	var tv = timerVector{
 		entityVector: entityVector{
@@ -45,11 +50,17 @@ func (tv *timerVector) WithLabels(ls ...string) Timer {
 	return tv.entity(ls).(*timer)
 }
 
+// StopWatch represents an active timing measurement.
+// Call Stop to record the elapsed duration.
 type StopWatch interface {
+	// Stop records the elapsed time since Start was called.
 	Stop()
 }
 
+// Timer is a convenience wrapper around Histogram for measuring durations.
+// It automatically records durations in seconds by default.
 type Timer interface {
+	// Start begins a new timing measurement and returns a StopWatch.
 	Start() StopWatch
 }
 
@@ -72,6 +83,7 @@ type stopWatch struct {
 	timer *timer
 }
 
+// TimerOption configures a Timer with custom settings.
 type TimerOption func(*timerOptions)
 
 type timerOptions struct {
@@ -79,12 +91,15 @@ type timerOptions struct {
 	suffix string
 }
 
+// WithHistogramOptions configures the underlying histogram with custom options.
 func WithHistogramOptions(hOpts ...HistogramOption) TimerOption {
 	return func(opts *timerOptions) {
 		opts.hOpts = hOpts
 	}
 }
 
+// WithTimerSuffix configures a custom suffix for the timer's metric name.
+// Default suffix is "_seconds".
 func WithTimerSuffix(s string) TimerOption {
 	return func(opts *timerOptions) {
 		opts.suffix = s
@@ -100,6 +115,8 @@ func (sw *stopWatch) Stop() {
 	sw.timer.p.Put(sw)
 }
 
+// NewTimer creates a new timer with the given scope, name, and options.
+// The timer automatically appends "_seconds" suffix to the name (configurable via WithTimerSuffix).
 func NewTimer(scope Scope, name string, tOpts ...TimerOption) Timer {
 	var opts = defaultTimerOptions
 

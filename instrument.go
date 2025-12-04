@@ -2,7 +2,11 @@ package stats
 
 import "fmt"
 
+// InstrumentVector is a multi-dimensional instrument that creates instrument instances
+// with specific label values.
 type InstrumentVector interface {
+	// WithLabels returns an Instrument with the specified label values.
+	// The number of values must match the number of labels defined for this vector.
 	WithLabels(...string) Instrument
 }
 
@@ -14,6 +18,7 @@ type instrumentVector struct {
 	opts  instrumentOptions
 }
 
+// NewInstrumentVector creates a new instrument vector with the given scope, name, labels, and options.
 func NewInstrumentVector(scope Scope, name string, labels []string, opts ...InstrumentOption) InstrumentVector {
 	var iv = instrumentVector{
 		entityVector: entityVector{
@@ -42,10 +47,21 @@ func (iv *instrumentVector) WithLabels(ls ...string) Instrument {
 	return iv.entity(ls).(*instrument)
 }
 
+// Instrument provides automatic instrumentation for function execution.
+// It tracks three metrics automatically:
+//   - <name>_started_total: counter of operation starts
+//   - <name>_total{status="..."}: counter of completions by status
+//   - <name>_duration_seconds: histogram of execution durations
+//
+// The started counter is useful for computing in-flight operations:
+// in_flight = started_total - sum(total)
 type Instrument interface {
+	// Exec executes the given function and records metrics.
+	// Returns the error from the function unchanged.
 	Exec(func() error) error
 }
 
+// InstrumentOption configures an Instrument with custom settings.
 type InstrumentOption func(*instrumentOptions)
 
 var defaultInstrumentOptions = instrumentOptions{
@@ -54,24 +70,32 @@ var defaultInstrumentOptions = instrumentOptions{
 	counterLabel: "status",
 }
 
+// DisableStartedCounter disables tracking of the started counter.
+// Use this when you only care about completions and duration, not in-flight count.
 func DisableStartedCounter() InstrumentOption {
 	return func(opts *instrumentOptions) {
 		opts.trackStarted = false
 	}
 }
 
+// WithFormatter configures a custom error formatter to categorize errors.
+// The formatter converts errors into status label values.
+// Default formatter returns "success" for nil and "failed" for any error.
 func WithFormatter(f ErrorFormatter) InstrumentOption {
 	return func(opts *instrumentOptions) {
 		opts.formatter = f
 	}
 }
 
+// WithCounterLabel configures a custom label name for the status label.
+// Default is "status".
 func WithCounterLabel(s string) InstrumentOption {
 	return func(opts *instrumentOptions) {
 		opts.counterLabel = s
 	}
 }
 
+// WithTimerOptions configures the underlying timer with custom options.
 func WithTimerOptions(tOpts ...TimerOption) InstrumentOption {
 	return func(opts *instrumentOptions) {
 		opts.tOpts = tOpts
@@ -85,6 +109,12 @@ type instrumentOptions struct {
 	counterLabel string
 }
 
+// NewInstrument creates a new instrument with the given scope, name, and options.
+//
+// The instrument automatically creates three metrics:
+//   - <name>_started_total: counter (optional, see DisableStartedCounter)
+//   - <name>_total{status="..."}: counter with status label
+//   - <name>_duration_seconds: histogram
 func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrument {
 	var opts = defaultInstrumentOptions
 
@@ -117,6 +147,8 @@ func newInstrument(scope Scope, name string, opts instrumentOptions) *instrument
 	}
 }
 
+// ErrorFormatter converts an error into a status label value.
+// Used by Instrument to categorize operation results.
 type ErrorFormatter func(error) string
 
 type instrument struct {

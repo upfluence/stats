@@ -1,11 +1,21 @@
 package stats
 
+// GaugeVector is a multi-dimensional gauge that creates gauge instances
+// with specific label values.
 type GaugeVector interface {
+	// WithLabels returns a Gauge with the specified label values.
+	// The number of values must match the number of labels defined for this vector.
 	WithLabels(...string) Gauge
 }
 
+// Gauge represents a metric that can increase or decrease.
+// Gauges are used to track current values, such as active connections,
+// memory usage, or queue depth.
 type Gauge interface {
+	// Update sets the gauge to the given value.
 	Update(int64)
+
+	// Get returns the current value of the gauge.
 	Get() int64
 }
 
@@ -36,7 +46,10 @@ func (rgv reorderGaugeVector) WithLabels(ls ...string) Gauge {
 }
 
 var (
-	NoopGauge       Gauge       = noopGauge{}
+	// NoopGauge is a gauge that discards all operations.
+	NoopGauge Gauge = noopGauge{}
+
+	// NoopGaugeVector is a gauge vector that returns noop gauges.
 	NoopGaugeVector GaugeVector = noopGaugeVector{}
 )
 

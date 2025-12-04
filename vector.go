@@ -5,13 +5,19 @@ import (
 	"sync"
 )
 
+// Int64Value represents a single int64 metric value with its associated tags.
 type Int64Value struct {
 	Tags  map[string]string
 	Value int64
 }
 
+// Int64VectorGetter provides read access to int64 vectors for collectors.
+// Used by both counters and gauges.
 type Int64VectorGetter interface {
+	// Labels returns the label names for this vector.
 	Labels() []string
+
+	// Get returns all values with their label combinations.
 	Get() []*Int64Value
 }
 

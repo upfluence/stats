@@ -6,12 +6,15 @@ import (
 	"sort"
 )
 
+// StaticCollector is a collector implementation useful for testing and debugging.
+// It stores all registered metrics and provides a snapshot interface to inspect values.
 type StaticCollector struct {
 	counters   map[string]Int64VectorGetter
 	gauges     map[string]Int64VectorGetter
 	histograms map[string]HistogramVectorGetter
 }
 
+// NewStaticCollector creates a new static collector for testing.
 func NewStaticCollector() *StaticCollector {
 	return &StaticCollector{
 		counters:   make(map[string]Int64VectorGetter),
@@ -34,6 +37,7 @@ func (c *StaticCollector) RegisterHistogram(n string, g HistogramVectorGetter) {
 	c.histograms[n] = g
 }
 
+// Int64Snapshot represents a snapshot of a counter or gauge value.
 type Int64Snapshot struct {
 	Name   string
 	Labels map[string]string
@@ -57,11 +61,13 @@ func int64snapshots(n string, g Int64VectorGetter) []Int64Snapshot {
 	return sns
 }
 
+// HistogramSnapshot represents a snapshot of a histogram value.
 type HistogramSnapshot struct {
 	Name  string
 	Value HistogramValue
 }
 
+// Snapshot contains all metric values at a point in time.
 type Snapshot struct {
 	Counters   []Int64Snapshot
 	Gauges     []Int64Snapshot
@@ -109,6 +115,8 @@ func (ss HistogramSnapshots) Swap(i int, j int) {
 	ss[j], ss[i] = ss[i], ss[j]
 }
 
+// Get returns a sorted snapshot of all metric values.
+// Useful for testing and assertions.
 func (c *StaticCollector) Get() Snapshot {
 	var (
 		counters, gauges []Int64Snapshot

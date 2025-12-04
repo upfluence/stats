@@ -16,6 +16,8 @@ type rootScope struct {
 	histograms map[string]*histogramVector
 }
 
+// RootScope creates a new root scope that registers metrics with the given collector.
+// This is the primary entry point for creating a metrics hierarchy.
 func RootScope(c Collector) Scope {
 	return scopeWrapper{
 		&rootScope{

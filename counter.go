@@ -1,13 +1,25 @@
 package stats
 
+// CounterVector is a multi-dimensional counter that creates counter instances
+// with specific label values.
 type CounterVector interface {
+	// WithLabels returns a Counter with the specified label values.
+	// The number of values must match the number of labels defined for this vector.
 	WithLabels(...string) Counter
 }
 
+// Counter represents a monotonically increasing metric.
+// Counters are used to track totals, such as request counts or error counts.
+// Once incremented, a counter never decreases (except on process restart).
 type Counter interface {
+	// Inc increments the counter by 1.
 	Inc()
+
+	// Add increments the counter by the given value.
+	// The value should be non-negative.
 	Add(int64)
 
+	// Get returns the current value of the counter.
 	Get() int64
 }
 
@@ -38,7 +50,10 @@ func (rcv reorderCounterVector) WithLabels(ls ...string) Counter {
 }
 
 var (
-	NoopCounter       Counter       = noopCounter{}
+	// NoopCounter is a counter that discards all operations.
+	NoopCounter Counter = noopCounter{}
+
+	// NoopCounterVector is a counter vector that returns noop counters.
 	NoopCounterVector CounterVector = noopCounterVector{}
 )
 
