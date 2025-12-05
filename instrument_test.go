@@ -85,6 +85,19 @@ func TestInstrument(t *testing.T) {
 			},
 		},
 		{
+			name: "disable duration tracking",
+			instrumentFn: func(c Collector) Instrument {
+				return NewInstrument(
+					RootScope(c),
+					"foo",
+					DisableDurationTracking(),
+				)
+			},
+			assert: func(t *testing.T, s Snapshot) {
+				assert.Empty(t, s.Histograms)
+			},
+		},
+		{
 			name: "disable started counter",
 			instrumentFn: func(c Collector) Instrument {
 				return NewInstrument(

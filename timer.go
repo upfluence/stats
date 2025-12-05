@@ -134,3 +134,17 @@ func newTimer(scope Scope, name string, opts timerOptions) *timer {
 
 	return &t
 }
+
+type noopTimer struct{}
+
+func (nt noopTimer) Start() StopWatch {
+	return noopStopWatch{}
+}
+
+type noopStopWatch struct{}
+
+func (nsw noopStopWatch) Stop() {}
+
+// NoopTimer is a no-operation timer that does nothing.
+// Useful for disabling timing measurements.
+var NoopTimer Timer = noopTimer{}

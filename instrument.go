@@ -69,9 +69,10 @@ type Instrument interface {
 type InstrumentOption func(*instrumentOptions)
 
 var defaultInstrumentOptions = instrumentOptions{
-	formatter:    defaultFormatter,
-	trackStarted: true,
-	counterLabel: "status",
+	formatter:     defaultFormatter,
+	trackStarted:  true,
+	trackDuration: true,
+	counterLabel:  "status",
 }
 
 // DisableStartedCounter disables tracking of the started counter.
@@ -79,6 +80,14 @@ var defaultInstrumentOptions = instrumentOptions{
 func DisableStartedCounter() InstrumentOption {
 	return func(opts *instrumentOptions) {
 		opts.trackStarted = false
+	}
+}
+
+// DisableDurationTracking disables tracking of operation duration.
+// Use this when you only care about counters, not timing.
+func DisableDurationTracking() InstrumentOption {
+	return func(opts *instrumentOptions) {
+		opts.trackDuration = false
 	}
 }
 
@@ -107,10 +116,11 @@ func WithTimerOptions(tOpts ...TimerOption) InstrumentOption {
 }
 
 type instrumentOptions struct {
-	formatter    ErrorFormatter
-	tOpts        []TimerOption
-	trackStarted bool
-	counterLabel string
+	formatter     ErrorFormatter
+	tOpts         []TimerOption
+	trackStarted  bool
+	trackDuration bool
+	counterLabel  string
 }
 
 // NewInstrument creates a new instrument with the given scope, name, and options.
@@ -118,7 +128,7 @@ type instrumentOptions struct {
 // The instrument automatically creates three metrics:
 //   - <name>_started_total: counter (optional, see DisableStartedCounter)
 //   - <name>_total{status="..."}: counter with status label
-//   - <name>_duration_seconds: histogram
+//   - <name>_duration_seconds: histogram (optional, see DisableDurationTracking)
 func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrument {
 	if _, ok := scope.(noopScope); ok {
 		return NoopInstrument
@@ -134,20 +144,27 @@ func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrume
 }
 
 func newInstrument(scope Scope, name string, opts instrumentOptions) *instrument {
-	var startedCounter Counter = noopCounter{}
+	var (
+		startedCounter Counter = noopCounter{}
+		timer          Timer   = noopTimer{}
+	)
 
 	if opts.trackStarted {
 		startedCounter = scope.Counter(fmt.Sprintf("%s_started_total", name))
 	}
 
-	return &instrument{
-		instrumentOptions: opts,
-		timer: NewTimer(
+	if opts.trackDuration {
+		timer = NewTimer(
 			scope,
 			fmt.Sprintf("%s_duration", name),
 			opts.tOpts...,
-		),
-		started: startedCounter,
+		)
+	}
+
+	return &instrument{
+		instrumentOptions: opts,
+		timer:             timer,
+		started:           startedCounter,
 		finished: scope.CounterVector(
 			fmt.Sprintf("%s_total", name),
 			[]string{opts.counterLabel},
