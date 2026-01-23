@@ -209,21 +209,16 @@ func defaultFormatter(err error) string {
 // ExecInstrument2 is a generic wrapper around Instrument.Exec that handles functions
 // returning both a value and an error. This is a convenience function for instrumenting
 // operations that return results.
-//
-// Note: The error from the instrumented function is tracked but not returned by this
-// function. Use Instrument.Exec directly if you need to handle the error.
 func ExecInstrument2[T any](i Instrument, fn func() (T, error)) (T, error) {
 	var res T
 
-	i.Exec(func() error {
+	return res, i.Exec(func() error {
 		var err error
 
 		res, err = fn()
 
 		return err
 	})
-
-	return res, nil
 }
 
 type noopInstrument struct{}
