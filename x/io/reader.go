@@ -43,12 +43,12 @@ func WrapReader(r io.Reader, scope stats.Scope, cfg Config) io.Reader {
 }
 
 func (r *reader) Read(p []byte) (int, error) {
-	n, err := exec(r.instrument, func() (int, error) {
-		return r.Reader.Read(p)
-	})
+	operation := r.instrument.Begin()
+	n, err := r.Reader.Read(p)
+	operation.Finish(err)
 	r.bytes.Add(int64(n))
 
-	return n, err
+	return n, err //nolint:wrapcheck
 }
 
 type writerToReader struct {
@@ -58,16 +58,10 @@ type writerToReader struct {
 }
 
 func (r *writerToReader) WriteTo(w io.Writer) (int64, error) {
-	n, err := exec(r.instrument, func() (int64, error) {
-		return r.writerTo.WriteTo(w)
-	})
+	operation := r.instrument.Begin()
+	n, err := r.writerTo.WriteTo(w)
+	operation.Finish(err)
 	r.bytes.Add(n)
 
-	return n, err
-}
-
-func exec[T int | int64](instrument stats.Instrument, fn func() (T, error)) (T, error) {
-	// Preserve I/O errors for callers and custom instrument formatters.
-	//nolint:wrapcheck
-	return stats.ExecInstrument2(instrument, fn)
+	return n, err //nolint:wrapcheck
 }

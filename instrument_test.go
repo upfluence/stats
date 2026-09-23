@@ -264,6 +264,50 @@ func TestInstrumentCachesOnlySuccessfulCompletion(t *testing.T) {
 	assert.Equal(t, 3, formatterCalls)
 }
 
+func TestExecInstrument2(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		haveValue  string
+		haveErr    error
+		wantStatus string
+	}{
+		{
+			name:       "success",
+			haveValue:  "value",
+			wantStatus: "success",
+		},
+		{
+			name:       "failure",
+			haveErr:    errMock,
+			wantStatus: "failed",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := NewStaticCollector()
+			instrument := NewInstrument(
+				RootScope(collector),
+				"operation",
+				DisableDurationTracking(),
+			)
+
+			got, err := ExecInstrument2(instrument, func() (string, error) {
+				return tt.haveValue, tt.haveErr
+			})
+
+			assert.Equal(t, tt.haveErr, err)
+			assert.Equal(t, tt.haveValue, got)
+			assert.Equal(
+				t,
+				[]Int64Snapshot{
+					{Name: "operation_started_total", Labels: map[string]string{}, Value: 1},
+					{Name: "operation_total", Labels: map[string]string{"status": tt.wantStatus}, Value: 1},
+				},
+				collector.Get().Counters,
+			)
+		})
+	}
+}
+
 func BenchmarkInstrumentExec(b *testing.B) {
 	for _, bb := range []struct {
 		name       string
@@ -322,6 +366,42 @@ func BenchmarkInstrumentExec(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				_ = instrument.Exec(fn)
+			}
+		})
+	}
+}
+
+func BenchmarkExecInstrument2(b *testing.B) {
+	for _, bb := range []struct {
+		name       string
+		instrument func() Instrument
+	}{
+		{
+			name: "default",
+			instrument: func() Instrument {
+				return NewInstrument(RootScope(NewStaticCollector()), "operation")
+			},
+		},
+		{
+			name: "without duration",
+			instrument: func() Instrument {
+				return NewInstrument(
+					RootScope(NewStaticCollector()),
+					"operation",
+					DisableDurationTracking(),
+				)
+			},
+		},
+	} {
+		b.Run(bb.name, func(b *testing.B) {
+			instrument := bb.instrument()
+			fn := func() (int, error) { return 42, nil }
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				_, _ = ExecInstrument2(instrument, fn)
 			}
 		})
 	}

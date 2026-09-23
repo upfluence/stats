@@ -36,12 +36,12 @@ func WrapWriter(w io.Writer, scope stats.Scope, cfg Config) io.Writer {
 }
 
 func (w *writer) Write(p []byte) (int, error) {
-	n, err := exec(w.instrument, func() (int, error) {
-		return w.Writer.Write(p)
-	})
+	operation := w.instrument.Begin()
+	n, err := w.Writer.Write(p)
+	operation.Finish(err)
 	w.bytes.Add(int64(n))
 
-	return n, err
+	return n, err //nolint:wrapcheck
 }
 
 type readerFromWriter struct {
@@ -51,10 +51,10 @@ type readerFromWriter struct {
 }
 
 func (w *readerFromWriter) ReadFrom(r io.Reader) (int64, error) {
-	n, err := exec(w.instrument, func() (int64, error) {
-		return w.readerFrom.ReadFrom(r)
-	})
+	operation := w.instrument.Begin()
+	n, err := w.readerFrom.ReadFrom(r)
+	operation.Finish(err)
 	w.bytes.Add(n)
 
-	return n, err
+	return n, err //nolint:wrapcheck
 }

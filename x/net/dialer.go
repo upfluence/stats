@@ -61,22 +61,22 @@ func WrapDialer(d Dialer, scope stats.Scope, cfg Config) Dialer {
 }
 
 func (d *dialer) Dial(network, address string) (stdnet.Conn, error) {
-	return dial(d.open, d.conn, func() (stdnet.Conn, error) {
-		return d.d.Dial(network, address)
-	})
+	operation := d.open.Begin()
+	conn, err := d.d.Dial(network, address)
+	operation.Finish(err)
+
+	return wrapDialedConn(conn, err, d.conn)
 }
 
 func (d *dialer) DialContext(ctx context.Context, network, address string) (stdnet.Conn, error) {
-	return dial(d.open, d.conn, func() (stdnet.Conn, error) {
-		return d.d.DialContext(ctx, network, address)
-	})
+	operation := d.open.Begin()
+	conn, err := d.d.DialContext(ctx, network, address)
+	operation.Finish(err)
+
+	return wrapDialedConn(conn, err, d.conn)
 }
 
-func dial(instrument stats.Instrument, metrics connectionMetrics, fn func() (stdnet.Conn, error)) (stdnet.Conn, error) {
-	// Preserve the dial error for callers and custom instrument formatters.
-	//nolint:wrapcheck
-	conn, err := stats.ExecInstrument2(instrument, fn)
-
+func wrapDialedConn(conn stdnet.Conn, err error, metrics connectionMetrics) (stdnet.Conn, error) {
 	if err != nil {
 		return nil, err //nolint:wrapcheck
 	}

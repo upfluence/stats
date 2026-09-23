@@ -63,9 +63,30 @@ func (iv *instrumentVector) WithLabels(ls ...string) Instrument {
 // The started counter is useful for computing in-flight operations:
 // in_flight = started_total - sum(total)
 type Instrument interface {
+	// Begin records the start of an operation. Finish must be called exactly
+	// once on the returned Operation.
+	Begin() Operation
+
 	// Exec executes the given function and records metrics.
 	// Returns the error from the function unchanged.
 	Exec(func() error) error
+}
+
+// Operation represents an execution being tracked by an Instrument. Its zero
+// value is a no-op.
+type Operation struct {
+	instrument *instrument
+	stopwatch  StopWatch
+}
+
+// Finish records the completion status and duration of the operation.
+func (o Operation) Finish(err error) {
+	if o.instrument == nil {
+		return
+	}
+
+	o.stopwatch.Stop()
+	o.instrument.finish(err)
 }
 
 // InstrumentOption configures an Instrument with custom settings.
@@ -190,14 +211,26 @@ type instrument struct {
 	success     Counter
 }
 
-func (i *instrument) Exec(fn func() error) error {
+func (i *instrument) Begin() Operation {
 	i.started.Inc()
-	sw := i.timer.Start()
+
+	return Operation{
+		instrument: i,
+		stopwatch:  i.timer.Start(),
+	}
+}
+
+func (i *instrument) Exec(fn func() error) error {
+	operation := i.Begin()
 
 	err := fn()
 
-	sw.Stop()
+	operation.Finish(err)
 
+	return err
+}
+
+func (i *instrument) finish(err error) {
 	if err == nil {
 		i.successOnce.Do(func() {
 			i.success = i.finished.WithLabels(i.formatter(nil))
@@ -207,8 +240,6 @@ func (i *instrument) Exec(fn func() error) error {
 	} else {
 		i.finished.WithLabels(i.formatter(err)).Inc()
 	}
-
-	return err
 }
 
 // defaultFormatter , look into https://github.com/upfluence/errors/blob/master/stats/statuser.go#L36
@@ -221,22 +252,23 @@ func defaultFormatter(err error) string {
 	return "failed"
 }
 
-// ExecInstrument2 is a generic wrapper around Instrument.Exec that handles functions
-// returning both a value and an error. This is a convenience function for instrumenting
-// operations that return results.
+// ExecInstrument2 executes a function returning a value and an error while
+// recording its execution with i.
 func ExecInstrument2[T any](i Instrument, fn func() (T, error)) (T, error) {
-	var res T
+	operation := i.Begin()
 
-	return res, i.Exec(func() error {
-		var err error
+	res, err := fn()
 
-		res, err = fn()
+	operation.Finish(err)
 
-		return err
-	})
+	return res, err
 }
 
 type noopInstrument struct{}
+
+func (n noopInstrument) Begin() Operation {
+	return Operation{}
+}
 
 func (n noopInstrument) Exec(fn func() error) error {
 	return fn()

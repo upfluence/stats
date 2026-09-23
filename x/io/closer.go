@@ -21,7 +21,9 @@ func WrapCloser(c io.Closer, scope stats.Scope, opts ...stats.InstrumentOption) 
 }
 
 func (c *closer) Close() error {
-	// Preserve the close error for callers and custom instrument formatters.
-	//nolint:wrapcheck
-	return c.instrument.Exec(c.Closer.Close)
+	operation := c.instrument.Begin()
+	err := c.Closer.Close()
+	operation.Finish(err)
+
+	return err //nolint:wrapcheck
 }
