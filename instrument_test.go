@@ -238,3 +238,91 @@ func TestInstrumentVector(t *testing.T) {
 		c.Get().Counters,
 	)
 }
+
+func TestInstrumentCachesOnlySuccessfulCompletion(t *testing.T) {
+	var formatterCalls int
+
+	instrument := NewInstrument(
+		RootScope(NewStaticCollector()),
+		"operation",
+		DisableDurationTracking(),
+		WithFormatter(func(err error) string {
+			formatterCalls++
+
+			return defaultFormatter(err)
+		}),
+	)
+
+	for i := 0; i < 2; i++ {
+		_ = instrument.Exec(func() error { return nil })
+	}
+
+	for i := 0; i < 2; i++ {
+		_ = instrument.Exec(func() error { return errMock })
+	}
+
+	assert.Equal(t, 3, formatterCalls)
+}
+
+func BenchmarkInstrumentExec(b *testing.B) {
+	for _, bb := range []struct {
+		name       string
+		instrument func() Instrument
+	}{
+		{
+			name: "noop",
+			instrument: func() Instrument {
+				return NoopInstrument
+			},
+		},
+		{
+			name: "default",
+			instrument: func() Instrument {
+				return NewInstrument(RootScope(NewStaticCollector()), "operation")
+			},
+		},
+		{
+			name: "without duration",
+			instrument: func() Instrument {
+				return NewInstrument(
+					RootScope(NewStaticCollector()),
+					"operation",
+					DisableDurationTracking(),
+				)
+			},
+		},
+		{
+			name: "without started counter",
+			instrument: func() Instrument {
+				return NewInstrument(
+					RootScope(NewStaticCollector()),
+					"operation",
+					DisableStartedCounter(),
+				)
+			},
+		},
+		{
+			name: "completion counter only",
+			instrument: func() Instrument {
+				return NewInstrument(
+					RootScope(NewStaticCollector()),
+					"operation",
+					DisableDurationTracking(),
+					DisableStartedCounter(),
+				)
+			},
+		},
+	} {
+		b.Run(bb.name, func(b *testing.B) {
+			instrument := bb.instrument()
+			fn := func() error { return nil }
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				_ = instrument.Exec(fn)
+			}
+		})
+	}
+}

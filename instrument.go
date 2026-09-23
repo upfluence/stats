@@ -1,6 +1,9 @@
 package stats
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 // InstrumentVector is a multi-dimensional instrument that creates instrument instances
 // with specific label values.
@@ -182,6 +185,9 @@ type instrument struct {
 	finished CounterVector
 	started  Counter
 	timer    Timer
+
+	successOnce sync.Once
+	success     Counter
 }
 
 func (i *instrument) Exec(fn func() error) error {
@@ -191,7 +197,16 @@ func (i *instrument) Exec(fn func() error) error {
 	err := fn()
 
 	sw.Stop()
-	i.finished.WithLabels(i.formatter(err)).Inc()
+
+	if err == nil {
+		i.successOnce.Do(func() {
+			i.success = i.finished.WithLabels(i.formatter(nil))
+		})
+
+		i.success.Inc()
+	} else {
+		i.finished.WithLabels(i.formatter(err)).Inc()
+	}
 
 	return err
 }
