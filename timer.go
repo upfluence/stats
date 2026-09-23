@@ -14,7 +14,7 @@ type TimerVector interface {
 }
 
 type timerVector struct {
-	entityVector
+	entityVector[*timer]
 
 	scope Scope
 	name  string
@@ -24,9 +24,10 @@ type timerVector struct {
 // NewTimerVector creates a new timer vector with the given scope, name, labels, and options.
 func NewTimerVector(scope Scope, name string, labels []string, opts ...TimerOption) TimerVector {
 	var tv = timerVector{
-		entityVector: entityVector{
+		entityVector: entityVector[*timer]{
 			marshaler: newDefaultMarshaler(),
 			labels:    labels,
+			entities:  make(map[uint64]*timer),
 		},
 		scope: scope,
 		name:  name,
@@ -42,12 +43,12 @@ func NewTimerVector(scope Scope, name string, labels []string, opts ...TimerOpti
 	return &tv
 }
 
-func (tv *timerVector) newTimer(vs map[string]string) interface{} {
+func (tv *timerVector) newTimer(vs map[string]string) *timer {
 	return newTimer(tv.scope.Scope("", vs), tv.name, tv.opts)
 }
 
 func (tv *timerVector) WithLabels(ls ...string) Timer {
-	return tv.entity(ls).(*timer)
+	return tv.entity(ls)
 }
 
 // StopWatch represents an active timing measurement.

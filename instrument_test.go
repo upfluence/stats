@@ -121,6 +121,19 @@ func TestInstrument(t *testing.T) {
 			},
 		},
 		{
+			name: "disable instrument",
+			instrumentFn: func(c Collector) Instrument {
+				return NewInstrument(
+					RootScope(c),
+					"foo",
+					DisableInstrument(),
+				)
+			},
+			assert: func(t *testing.T, s Snapshot) {
+				assert.Equal(t, Snapshot{}, s)
+			},
+		},
+		{
 			name: "custom error formatter",
 			instrumentFn: func(c Collector) Instrument {
 				return NewInstrument(

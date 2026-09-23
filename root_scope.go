@@ -9,7 +9,7 @@ import (
 type rootScope struct {
 	c  Collector
 	mu sync.Mutex
-	lm labelMarshaler
+	lm *hashingMarshaler
 
 	counters   map[string]*atomicInt64Vector
 	gauges     map[string]*atomicInt64Vector

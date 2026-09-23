@@ -6,12 +6,7 @@ import (
 	"github.com/upfluence/stats/internal/hash"
 )
 
-type labelMarshaler interface {
-	marshal([]string) uint64
-	unmarshal(uint64, int) []string
-}
-
-func newDefaultMarshaler() labelMarshaler {
+func newDefaultMarshaler() *hashingMarshaler {
 	return &hashingMarshaler{
 		st: make(map[hashingKey][]string),
 	}
@@ -34,8 +29,22 @@ func (hm *hashingMarshaler) marshal(vs []string) uint64 {
 		res = hash.Add(res, v)
 	}
 
+	key := hashingKey{hash: res, len: len(vs)}
+
+	hm.RLock()
+	_, ok := hm.st[key]
+	hm.RUnlock()
+
+	if ok {
+		return res
+	}
+
 	hm.Lock()
-	hm.st[hashingKey{hash: res, len: len(vs)}] = vs
+
+	if _, ok := hm.st[key]; !ok {
+		hm.st[key] = append([]string(nil), vs...)
+	}
+
 	hm.Unlock()
 
 	return res

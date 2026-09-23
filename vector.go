@@ -22,15 +22,16 @@ type Int64VectorGetter interface {
 }
 
 type atomicInt64Vector struct {
-	entityVector
+	entityVector[*atomicInt64]
 }
 
-func newAtomicInt64Vector(ls []string, lm labelMarshaler) *atomicInt64Vector {
+func newAtomicInt64Vector(ls []string, lm *hashingMarshaler) *atomicInt64Vector {
 	return &atomicInt64Vector{
-		entityVector: entityVector{
+		entityVector: entityVector[*atomicInt64]{
 			labels:    ls,
+			entities:  make(map[uint64]*atomicInt64),
 			marshaler: lm,
-			newFunc:   func(map[string]string) interface{} { return &atomicInt64{} },
+			newFunc:   func(map[string]string) *atomicInt64 { return &atomicInt64{} },
 		},
 	}
 }
@@ -48,37 +49,52 @@ func (v *atomicInt64Vector) buildTags(key uint64) map[string]string {
 }
 
 func (v *atomicInt64Vector) Get() []*Int64Value {
-	var res []*Int64Value
+	type entry struct {
+		key   uint64
+		value *atomicInt64
+	}
 
-	v.entities.Range(func(k, vv interface{}) bool {
+	v.mu.RLock()
+
+	var entries = make([]entry, 0, len(v.entities))
+
+	for k, vv := range v.entities {
+		entries = append(entries, entry{key: k, value: vv})
+	}
+
+	v.mu.RUnlock()
+
+	var res = make([]*Int64Value, 0, len(entries))
+
+	for _, entry := range entries {
 		res = append(
 			res,
 			&Int64Value{
-				Tags:  v.buildTags(k.(uint64)),
-				Value: vv.(*atomicInt64).Get(),
+				Tags:  v.buildTags(entry.key),
+				Value: entry.value.Get(),
 			},
 		)
-
-		return true
-	})
+	}
 
 	return res
 }
 
 func (v *atomicInt64Vector) fetchValue(ls []string) *atomicInt64 {
-	return v.entity(ls).(*atomicInt64)
+	return v.entity(ls)
 }
 
-type entityVector struct {
-	newFunc func(map[string]string) interface{}
+type entityVector[T any] struct {
+	newFunc func(map[string]string) T
 
-	labels   []string
-	entities sync.Map
+	labels []string
 
-	marshaler labelMarshaler
+	mu       sync.RWMutex
+	entities map[uint64]T
+
+	marshaler *hashingMarshaler
 }
 
-func (ev *entityVector) entity(ls []string) interface{} {
+func (ev *entityVector[T]) entity(ls []string) T {
 	if len(ls) != len(ev.labels) {
 		panic(
 			fmt.Sprintf(
@@ -90,7 +106,10 @@ func (ev *entityVector) entity(ls []string) interface{} {
 	}
 
 	k := ev.marshaler.marshal(ls)
-	v, ok := ev.entities.Load(k)
+
+	ev.mu.RLock()
+	v, ok := ev.entities[k]
+	ev.mu.RUnlock()
 
 	if ok {
 		return v
@@ -102,6 +121,17 @@ func (ev *entityVector) entity(ls []string) interface{} {
 		vs[k] = ls[i]
 	}
 
-	v, _ = ev.entities.LoadOrStore(k, ev.newFunc(vs))
+	v = ev.newFunc(vs)
+
+	ev.mu.Lock()
+
+	if existing, ok := ev.entities[k]; ok {
+		v = existing
+	} else {
+		ev.entities[k] = v
+	}
+
+	ev.mu.Unlock()
+
 	return v
 }

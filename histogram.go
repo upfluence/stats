@@ -58,7 +58,7 @@ type histogramVector struct {
 	mu sync.RWMutex
 	hs map[uint64]*histogram
 
-	marshaler labelMarshaler
+	marshaler *hashingMarshaler
 }
 
 func (hv *histogramVector) Labels() []string   { return hv.labels }

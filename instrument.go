@@ -14,7 +14,7 @@ type InstrumentVector interface {
 }
 
 type instrumentVector struct {
-	entityVector
+	entityVector[Instrument]
 
 	scope Scope
 	name  string
@@ -28,9 +28,10 @@ func NewInstrumentVector(scope Scope, name string, labels []string, opts ...Inst
 	}
 
 	var iv = instrumentVector{
-		entityVector: entityVector{
+		entityVector: entityVector[Instrument]{
 			marshaler: newDefaultMarshaler(),
 			labels:    labels,
+			entities:  make(map[uint64]Instrument),
 		},
 		scope: scope,
 		name:  name,
@@ -41,17 +42,21 @@ func NewInstrumentVector(scope Scope, name string, labels []string, opts ...Inst
 		opt(&iv.opts)
 	}
 
+	if iv.opts.disabled {
+		return NoopInstrumentVector
+	}
+
 	iv.newFunc = iv.newInstrument
 
 	return &iv
 }
 
-func (iv *instrumentVector) newInstrument(vs map[string]string) interface{} {
+func (iv *instrumentVector) newInstrument(vs map[string]string) Instrument {
 	return newInstrument(iv.scope.Scope("", vs), iv.name, iv.opts)
 }
 
 func (iv *instrumentVector) WithLabels(ls ...string) Instrument {
-	return iv.entity(ls).(*instrument)
+	return iv.entity(ls)
 }
 
 // Instrument provides automatic instrumentation for function execution.
@@ -99,6 +104,13 @@ var defaultInstrumentOptions = instrumentOptions{
 	counterLabel:  "status",
 }
 
+// DisableInstrument disables all metrics emitted by an Instrument.
+func DisableInstrument() InstrumentOption {
+	return func(opts *instrumentOptions) {
+		opts.disabled = true
+	}
+}
+
 // DisableStartedCounter disables tracking of the started counter.
 // Use this when you only care about completions and duration, not in-flight count.
 func DisableStartedCounter() InstrumentOption {
@@ -142,6 +154,7 @@ func WithTimerOptions(tOpts ...TimerOption) InstrumentOption {
 type instrumentOptions struct {
 	formatter     ErrorFormatter
 	tOpts         []TimerOption
+	disabled      bool
 	trackStarted  bool
 	trackDuration bool
 	counterLabel  string
@@ -167,7 +180,11 @@ func NewInstrument(scope Scope, name string, iOpts ...InstrumentOption) Instrume
 	return newInstrument(scope, name, opts)
 }
 
-func newInstrument(scope Scope, name string, opts instrumentOptions) *instrument {
+func newInstrument(scope Scope, name string, opts instrumentOptions) Instrument {
+	if opts.disabled {
+		return NoopInstrument
+	}
+
 	var (
 		startedCounter Counter = noopCounter{}
 		timer          Timer   = noopTimer{}
